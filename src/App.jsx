@@ -390,7 +390,7 @@ function App() {
               </h1>
 
               <p className="mt-5 max-w-lg leading-7 text-stone-600">
-                Explore student-friendly PGs and rooms near selected colleges
+                Explore student-friendly PGs and rooms near your colleges
                 and universities in Palampur, Himachal Pradesh.
               </p>
 
@@ -404,7 +404,7 @@ function App() {
 
             <div className="overflow-hidden rounded-4xl">
               <img
-                src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=85"
+                src="https://i.pinimg.com/736x/37/46/9d/37469d6c18a5c2a0fd5288c4147589fa.jpg?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
                 className="h-72 w-full object-cover md:h-105"
               />
