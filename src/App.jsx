@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -316,13 +315,14 @@ function App() {
             Stay<span className="text-orange-700">Hunt</span>
           </a>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-4">
             <button
               type="button"
               onClick={openStays}
-              className="hidden rounded-full px-3 py-2 text-sm font-semibold hover:text-orange-700 sm:inline-flex"
+              className="inline-flex items-center gap-1 rounded-full px-1.5 py-2 text-xs font-semibold hover:text-orange-700 sm:px-3 sm:text-sm"
             >
-              Explore stays
+              <Search size={15} />
+              <span>Explore</span>
             </button>
             <button
               type="button"
@@ -332,7 +332,10 @@ function App() {
               <Heart size={17} className={showWishlist ? "fill-red-500 text-red-500" : ""} />
               <span>Wishlist ({wishlist.length})</span>
             </button>
-            <a href="#about" className="hidden rounded-full px-2 py-2 text-sm font-semibold hover:text-orange-700 sm:inline-flex">
+            <a
+              href="#about"
+              className="inline-flex rounded-full px-1.5 py-2 text-xs font-semibold hover:text-orange-700 sm:px-2 sm:text-sm"
+            >
               About
             </a>
             {currentUser ? (
@@ -390,7 +393,7 @@ function App() {
               </h1>
 
               <p className="mt-5 max-w-lg leading-7 text-stone-600">
-                Explore student-friendly PGs and rooms near your colleges
+                Explore student-friendly PGs and rooms near selected colleges
                 and universities in Palampur, Himachal Pradesh.
               </p>
 
@@ -404,7 +407,7 @@ function App() {
 
             <div className="overflow-hidden rounded-4xl">
               <img
-                src="https://i.pinimg.com/736x/37/46/9d/37469d6c18a5c2a0fd5288c4147589fa.jpg?auto=format&fit=crop&w=1200&q=85"
+                src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
                 className="h-72 w-full object-cover md:h-105"
               />
@@ -562,27 +565,37 @@ function App() {
           )}
 
           {!loading && !error && displayedStays.length === 0 && (
-            <div className="rounded-2xl border border-orange-100 bg-white p-10 text-center">
-              <Heart className="mx-auto text-slate-400" size={34} />
-              <h3 className="mt-4 text-xl font-bold">
-                {showWishlist ? "Your wishlist is empty" : "No stays found"}
+            <div className="mx-auto max-w-2xl rounded-3xl border border-orange-100 bg-white px-6 py-12 text-center shadow-sm sm:px-10">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#fff0e5]">
+                <Heart
+                  size={36}
+                  className={showWishlist ? "fill-orange-200 text-orange-700" : "text-orange-700"}
+                />
+              </div>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-orange-700">
+                {showWishlist ? "Your favourites" : "Keep exploring"}
+              </p>
+              <h3 className="mt-2 text-2xl font-extrabold text-stone-800">
+                {showWishlist ? "Your wishlist is waiting for a stay!" : "No stays found"}
               </h3>
-              <p className="mt-2 text-slate-500">
+              <p className="mx-auto mt-3 max-w-md leading-7 text-stone-600">
                 {showWishlist
-                  ? "Tap the heart on any stay card to save it here."
-                  : "Try changing your search or filters, or check the listing details."}
+                  ? "You haven't saved any rooms or PGs yet. When you find a place you like, tap the heart on its card and it will appear here."
+                  : "We couldn't find a stay matching these filters. Try adjusting your choices or clear the filters to see all available listings."}
               </p>
               {showWishlist ? (
                 <button
+                  type="button"
                   onClick={openStays}
-                  className="mt-5 rounded-full bg-orange-700 px-5 py-2.5 font-semibold text-white"
+                  className="mt-7 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white transition hover:bg-orange-800"
                 >
-                  Explore stays
+                  <Search size={17} /> Explore stays
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={resetFilters}
-                  className="mt-5 rounded-full bg-orange-700 px-5 py-2.5 font-semibold text-white"
+                  className="mt-7 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white transition hover:bg-orange-800"
                 >
                   Clear filters
                 </button>
@@ -869,21 +882,83 @@ function App() {
           </div>
         </section>
 
-        <section id="about" className="mx-auto max-w-7xl px-5 py-14">
-          <div className="rounded-3xl bg-orange-700 px-6 py-10 text-white md:px-12 md:py-14">
-            <h2 className="text-3xl font-extrabold">
-              Your student stay search, made simpler.
-            </h2>
-            <p className="mt-3 max-w-2xl leading-7 text-orange-100">
-              StayHunt brings accommodation details together so students can
-              compare room types, rent and listed facilities in one place.
-            </p>
-            <a
-              href="#stays"
-              className="mt-6 inline-block rounded-full bg-white px-6 py-3 font-bold text-orange-800 hover:bg-orange-50"
-            >
-              Browse listings
-            </a>
+        <section id="about" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-14 sm:py-16">
+          <div className="overflow-hidden rounded-2rem border border-orange-100 bg-[#fff0e5] p-6 sm:p-8 md:p-12">
+            <div className="grid items-center gap-9 md:grid-cols-[1.15fr_0.85fr] md:gap-12">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-700">
+                  About StayHunt
+                </p>
+                <h2 className="mt-3 max-w-xl text-3xl font-extrabold leading-tight text-stone-800 sm:text-4xl">
+                  Finding the right stay, made simpler.
+                </h2>
+                <p className="mt-5 max-w-2xl leading-7 text-stone-600">
+                  Moving to a new city for studies can feel overwhelming.
+                  StayHunt helps students explore PGs and rooms around selected
+                  colleges and universities in Palampur, compare important
+                  details, and shortlist places that suit their needs.
+                </p>
+                <p className="mt-3 max-w-2xl leading-7 text-stone-600">
+                  From room type and monthly rent to facilities and location,
+                  the aim is to bring useful accommodation information together
+                  in one simple place.
+                </p>
+                <a
+                  href="#stays"
+                  onClick={() => setShowWishlist(false)}
+                  className="mt-7 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white transition hover:bg-orange-800"
+                >
+                  Browse listings <Search size={17} />
+                </a>
+              </div>
+
+              <div className="rounded-3xl border border-orange-100 bg-white p-5 shadow-sm sm:p-6">
+                <h3 className="text-lg font-extrabold text-stone-800">
+                  What you can do on StayHunt
+                </h3>
+                <div className="mt-5 space-y-5">
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0e5] text-orange-700">
+                      <Search size={21} />
+                    </span>
+                    <div>
+                      <p className="font-bold text-stone-800">Easy exploration</p>
+                      <p className="mt-1 text-sm leading-6 text-stone-600">
+                        Browse stays and compare rent, room types and listed facilities.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0e5] text-orange-700">
+                      <MapPin size={21} />
+                    </span>
+                    <div>
+                      <p className="font-bold text-stone-800">Student-focused locations</p>
+                      <p className="mt-1 text-sm leading-6 text-stone-600">
+                        Explore accommodation around selected institutions in and near Palampur.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff0e5] text-orange-700">
+                      <Heart size={21} />
+                    </span>
+                    <div>
+                      <p className="font-bold text-stone-800">Save your favourites</p>
+                      <p className="mt-1 text-sm leading-6 text-stone-600">
+                        Keep the stays you like together in your personal wishlist.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 rounded-2xl bg-orange-700 px-5 py-4 text-white">
+                  <p className="text-lg font-extrabold">Your stay. Your comfort. Your choice.</p>
+                  <p className="mt-1 text-sm leading-6 text-orange-100">
+                    Making the student stay search a little easier.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
