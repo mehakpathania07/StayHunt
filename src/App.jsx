@@ -16,6 +16,11 @@ import {
   CalendarDays,
   UserRound,
   LogOut,
+  Menu,
+  Sparkles,
+  CheckCircle2,
+  Clock3,
+  PartyPopper,
 } from "lucide-react";
 import { getFirestoreListings } from "./firestoreTest";
 import { db } from "./firebase";
@@ -78,6 +83,8 @@ function App() {
   const [showWishlist, setShowWishlist] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [requestView, setRequestView] = useState("active");
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [authLoading, setAuthLoading] = useState(false);
@@ -472,7 +479,7 @@ function App() {
         status,
         reviewedAt: serverTimestamp(),
       });
-      setAdminMessage(`Visit request ${status.toLowerCase()}.`);
+      setAdminMessage(status === "Archived" ? "Rejected request archived. You can find it in Archived requests." : `Visit request ${status.toLowerCase()}.`);
     } catch (err) {
       console.error("Updating visit request failed:", err);
       setAdminMessage("Could not update request. Check Firestore permissions.");
@@ -509,93 +516,31 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fffaf5] text-stone-800">
-      <header className="sticky top-0 z-20 border-b border-orange-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <a href="#home" className="text-2xl font-extrabold tracking-tight">
-            Stay<span className="text-orange-700">Hunt</span>
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#fffaf5] text-stone-800">
+      <style>{`html, body, #root { max-width: 100%; overflow-x: hidden; } img { max-width: 100%; } button, a { -webkit-tap-highlight-color: transparent; }`}</style>
+      <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
+          <a href="#home" onClick={() => setMobileMenuOpen(false)} className="shrink-0 text-[1.65rem] font-extrabold tracking-tight sm:text-2xl">
+            Stay<span className="text-orange-700">Hunt</span><span className="ml-1 inline-block align-top text-orange-500"><Sparkles size={13} /></span>
           </a>
-
-          <div className="flex items-center gap-1.5 sm:gap-4">
-            <button
-              type="button"
-              onClick={openStays}
-              className="inline-flex items-center gap-1 rounded-full px-1.5 py-2 text-xs font-semibold hover:text-orange-700 sm:px-3 sm:text-sm"
-            >
-              <Search size={15} />
-              <span>Explore</span>
-            </button>
-            <button
-              type="button"
-              onClick={openWishlist}
-              className={`inline-flex items-center gap-1.5 rounded-full px-2 py-2 text-sm font-semibold hover:text-orange-700 sm:px-3 ${showWishlist ? "text-orange-700" : ""}`}
-            >
-              <Heart size={17} className={showWishlist ? "fill-red-500 text-red-500" : ""} />
-              <span>Wishlist ({wishlist.length})</span>
-            </button>
-            <a
-              href="#about"
-              className="inline-flex rounded-full px-1.5 py-2 text-xs font-semibold hover:text-orange-700 sm:px-2 sm:text-sm"
-            >
-              About
-            </a>
-            {currentUser && isAdmin && !adminChecking && (
-              <button
-                type="button"
-                onClick={() => { setShowAdminDashboard(true); setAdminTab("overview"); setShowWishlist(false); }}
-                className="rounded-full bg-orange-700 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-800 sm:px-4 sm:text-sm"
-              >
-                Admin Dashboard
-              </button>
-            )}
-            {currentUser && !isAdmin && !adminChecking && (
-              <button
-                type="button"
-                onClick={() => setShowMyRequests(true)}
-                className="rounded-full border border-orange-200 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-50 sm:px-4 sm:text-sm"
-              >
-                My Requests{studentRequests.filter((item) => item.status === "Pending").length > 0 ? ` (${studentRequests.filter((item) => item.status === "Pending").length})` : ""}
-              </button>
-            )}
-            {currentUser ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowProfile((open) => !open)}
-                  aria-label="Open profile menu"
-                  aria-expanded={showProfile}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-orange-500 hover:bg-orange-50 hover:text-orange-800"
-                >
-                  <UserRound size={21} />
-                </button>
-                {showProfile && (
-                  <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-orange-100 bg-white p-4 shadow-xl">
-                    <p className="font-bold text-stone-800">My Profile</p>
-                    <p className="mt-1 break-all text-sm text-slate-500">
-                      {currentUser.displayName || currentUser.email || "Signed in"}
-                    </p>
-                    <div className="my-3 border-t border-slate-100" />
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-                    >
-                      <LogOut size={17} /> Logout
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => openAuth("login")}
-                className="rounded-full bg-orange-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-800 sm:px-5"
-              >
-                Login
-              </button>
-            )}
-          </div>
+          <nav className="hidden items-center gap-2 md:flex lg:gap-3">
+            <button type="button" onClick={openStays} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold hover:bg-orange-50 hover:text-orange-700"><Search size={16} /> Explore</button>
+            <button type="button" onClick={openWishlist} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold hover:bg-orange-50 hover:text-orange-700 ${showWishlist ? "text-orange-700" : ""}`}><Heart size={17} className={showWishlist ? "fill-rose-500 text-rose-500" : ""} /> Wishlist <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs text-orange-800">{wishlist.length}</span></button>
+            <a href="#about" className="rounded-full px-3 py-2 text-sm font-semibold hover:bg-orange-50 hover:text-orange-700">About</a>
+            {currentUser && isAdmin && !adminChecking && <button type="button" onClick={() => { setShowAdminDashboard(true); setAdminTab("overview"); setShowWishlist(false); }} className="rounded-full bg-orange-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-800"><span className="mr-1">✿</span> Admin Dashboard</button>}
+            {currentUser && !isAdmin && !adminChecking && <button type="button" onClick={() => setShowMyRequests(true)} className="rounded-full border border-orange-200 px-3 py-2 text-sm font-semibold text-orange-800 hover:bg-orange-50">My Requests{studentRequests.filter((item) => item.status === "Pending").length > 0 ? ` (${studentRequests.filter((item) => item.status === "Pending").length})` : ""}</button>}
+            {currentUser ? <div className="relative"><button type="button" onClick={() => setShowProfile((open) => !open)} aria-label="Open profile menu" aria-expanded={showProfile} className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-orange-200 bg-white text-stone-700 transition hover:border-orange-500 hover:bg-orange-50"><UserRound size={20} /></button>{showProfile && <div className="absolute right-0 top-12 z-50 w-64 rounded-2xl border border-orange-100 bg-white p-4 shadow-xl"><p className="font-bold">My Profile</p><p className="mt-1 break-all text-sm text-slate-500">{currentUser.displayName || currentUser.email || "Signed in"}</p><div className="my-3 border-t border-slate-100" /><button type="button" onClick={handleLogout} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"><LogOut size={17} /> Logout</button></div>}</div> : <button type="button" onClick={() => openAuth("login")} className="rounded-full bg-orange-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-800">Login</button>}
+          </nav>
+          <button type="button" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-orange-200 bg-white text-orange-800 md:hidden" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen((open) => !open)}>{mobileMenuOpen ? <X size={21} /> : <Menu size={21} />}</button>
         </div>
+        {mobileMenuOpen && <div className="border-t border-orange-100 bg-white px-4 py-3 shadow-lg md:hidden"><div className="mx-auto grid max-w-7xl grid-cols-2 gap-2">
+          <button type="button" onClick={() => { openStays(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 text-sm font-semibold text-orange-900"><Search size={17} /> Explore</button>
+          <button type="button" onClick={() => { openWishlist(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 text-sm font-semibold text-orange-900"><Heart size={17} /> Wishlist ({wishlist.length})</button>
+          <a href="#about" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 rounded-2xl bg-orange-50 px-3 py-3 text-sm font-semibold text-orange-900">About</a>
+          {currentUser && isAdmin && !adminChecking && <button type="button" onClick={() => { setShowAdminDashboard(true); setAdminTab("overview"); setMobileMenuOpen(false); }} className="rounded-2xl bg-orange-700 px-3 py-3 text-sm font-semibold text-white">✿ Admin Dashboard</button>}
+          {currentUser && !isAdmin && !adminChecking && <button type="button" onClick={() => { setShowMyRequests(true); setMobileMenuOpen(false); }} className="rounded-2xl border border-orange-200 px-3 py-3 text-sm font-semibold text-orange-900">My Requests</button>}
+          {currentUser ? <button type="button" onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="flex items-center gap-2 rounded-2xl border border-rose-200 px-3 py-3 text-sm font-semibold text-rose-700"><LogOut size={17} /> Logout</button> : <button type="button" onClick={() => { openAuth("login"); setMobileMenuOpen(false); }} className="rounded-2xl bg-orange-700 px-3 py-3 text-sm font-semibold text-white">Login</button>}
+        </div></div>}
       </header>
 
       {showMyRequests && currentUser && !isAdmin && (
@@ -610,10 +555,11 @@ function App() {
             ) : (
               <div className="space-y-3">{studentRequests.map((request) => (
                 <article key={request.id} className="rounded-2xl border border-orange-100 bg-white p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-stone-800">{request.listingName || "Stay visit"}</h3><p className="mt-1 text-sm text-stone-500">Preferred date: {request.visitDate || "Not specified"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-green-50 text-green-700" : request.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-800"}`}>{request.status || "Pending"}</span></div>
-                  {request.status === "Accepted" && <p className="mt-3 text-sm text-green-700">Your visit request has been accepted.</p>}
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-stone-800">{request.listingName || "Stay visit"}</h3><p className="mt-1 text-sm text-stone-500">Preferred date: {request.visitDate || "Not specified"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-green-50 text-green-700" : request.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-800"}`}>{request.status === "Accepted" ? "✓ Accepted" : request.status === "Rejected" ? "♡ Rejected" : request.status === "Archived" ? "Archived" : "◷ Pending"}</span></div>
+                  {request.status === "Accepted" && <p className="mt-3 inline-flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 size={17} /> Your visit request has been accepted.</p>}
                   {request.status === "Rejected" && <p className="mt-3 text-sm text-red-700">Your visit request was not accepted. You can explore other stays.</p>}
-                  {(!request.status || request.status === "Pending") && <p className="mt-3 text-sm text-stone-600">Your request is waiting for admin review.</p>}
+                  {request.status === "Archived" && <p className="mt-3 text-sm text-stone-600">This request has been archived by the admin. Its record is safely retained.</p>}
+                  {(!request.status || request.status === "Pending") && <p className="mt-3 inline-flex items-center gap-2 text-sm text-stone-600"><Clock3 size={16} /> Your request is waiting for admin review.</p>}
                 </article>
               ))}</div>
             )}
@@ -678,7 +624,10 @@ function App() {
             )}
 
             {adminTab === "requests" && (
-              <div><h2 className="mb-5 text-2xl font-extrabold">Visit requests</h2>{visitRequests.length === 0 ? <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center text-stone-600">No visit requests received yet.</div> : <div className="grid gap-4 md:grid-cols-2">{visitRequests.map((request) => <article key={request.id} className="rounded-2xl border border-orange-100 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{request.listingName || "Stay visit"}</h3><p className="mt-1 text-sm text-stone-500">{request.studentName || "Student"} · {request.studentEmail || "No email"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-green-50 text-green-700" : request.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-800"}`}>{request.status || "Pending"}</span></div><div className="mt-3 space-y-1 text-sm text-stone-600"><p>Phone: {request.phone || "Not provided"}</p><p>Preferred date: {request.visitDate || "Not provided"}</p></div>{request.status === "Pending" && <div className="mt-4 flex gap-2"><button type="button" onClick={() => updateVisitRequest(request.id,"Accepted")} className="rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white">Accept</button><button type="button" onClick={() => updateVisitRequest(request.id,"Rejected")} className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white">Reject</button></div>}</article>)}</div>}</div>
+              <div>
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-extrabold">Visit requests</h2><p className="mt-1 text-sm text-stone-500">Review student visit requests and keep old decisions organized.</p></div><div className="flex rounded-full bg-orange-50 p-1"><button type="button" onClick={() => setRequestView("active")} className={`rounded-full px-4 py-2 text-sm font-semibold ${requestView === "active" ? "bg-white text-orange-800 shadow-sm" : "text-stone-600"}`}>Active</button><button type="button" onClick={() => setRequestView("archived")} className={`rounded-full px-4 py-2 text-sm font-semibold ${requestView === "archived" ? "bg-white text-orange-800 shadow-sm" : "text-stone-600"}`}>Archived ({visitRequests.filter((item) => item.status === "Archived").length})</button></div></div>
+                {visitRequests.filter((item) => requestView === "archived" ? item.status === "Archived" : item.status !== "Archived").length === 0 ? <div className="rounded-3xl border border-orange-100 bg-white p-8 text-center"><div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-orange-50 text-orange-700"><PartyPopper size={27} /></div><p className="font-bold">{requestView === "archived" ? "No archived requests" : "No active visit requests"}</p><p className="mt-1 text-sm text-stone-500">{requestView === "archived" ? "Rejected requests you close will be kept here." : "New student visit requests will appear here."}</p></div> : <div className="grid gap-4 md:grid-cols-2">{visitRequests.filter((item) => requestView === "archived" ? item.status === "Archived" : item.status !== "Archived").map((request) => <article key={request.id} className="relative rounded-3xl border border-orange-100 bg-white p-5 shadow-sm transition hover:shadow-md"><div className="flex items-start justify-between gap-3 pr-1"><div className="min-w-0"><h3 className="wrap-break-word font-bold">{request.listingName || "Stay visit"}</h3><p className="mt-1 break-all text-sm text-stone-500">{request.studentName || "Student"} · {request.studentEmail || "No email"}</p></div><span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-emerald-50 text-emerald-700" : request.status === "Rejected" ? "bg-rose-50 text-rose-700" : request.status === "Archived" ? "bg-stone-100 text-stone-600" : "bg-orange-50 text-orange-800"}`}>{request.status === "Accepted" ? "✓ Accepted" : request.status === "Rejected" ? "♡ Rejected" : request.status === "Archived" ? "Archived" : "◷ Pending"}</span></div><div className="mt-3 space-y-1 wrap-break-word text-sm text-stone-600"><p>Phone: {request.phone || "Not provided"}</p><p>Preferred date: {request.visitDate || "Not provided"}</p></div>{request.status === "Pending" && <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => updateVisitRequest(request.id,"Accepted")} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"><CheckCircle2 size={16} /> Accept</button><button type="button" onClick={() => updateVisitRequest(request.id,"Rejected")} className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white">Reject</button></div>}{request.status === "Rejected" && requestView === "active" && <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-3 py-2"><span className="text-xs text-rose-700">Decision saved · ready to close</span><button type="button" onClick={() => updateVisitRequest(request.id,"Archived")} aria-label="Archive rejected request" title="Move to archived requests" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-white text-rose-700 transition hover:bg-rose-100"><X size={18} /></button></div>}{request.status === "Archived" && <div className="mt-3 flex items-center justify-between gap-2"><span className="text-xs text-stone-500">Safely archived · not deleted</span><button type="button" onClick={() => updateVisitRequest(request.id,"Rejected")} className="rounded-full border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-800">Restore</button></div>}</article>)}</div>}
+              </div>
             )}
           </div>
         </section>
@@ -686,18 +635,18 @@ function App() {
 
       <main id="home">
         <section className="relative overflow-hidden bg-[#fff0e5]">
-          <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-16 md:grid-cols-2 md:py-24">
+          <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 px-4 py-10 sm:px-5 sm:py-14 md:grid-cols-2 md:py-24">
             <div>
               <p className="mb-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-orange-800">
                 Student stays in Palampur
               </p>
 
-              <h1 className="max-w-xl text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
+              <h1 className="max-w-full wrap-break-word text-[2.15rem] font-extrabold leading-[1.12] tracking-tight sm:text-5xl md:max-w-xl md:text-6xl">
                 Find a place that feels like{" "}
                 <span className="text-orange-700">home.</span>
               </h1>
 
-              <p className="mt-5 max-w-lg leading-7 text-stone-600">
+              <p className="mt-5 max-w-lg text-base leading-7 text-stone-600 sm:text-lg">
                 Explore student-friendly PGs and rooms near selected colleges
                 and universities in Palampur, Himachal Pradesh.
               </p>
@@ -712,15 +661,15 @@ function App() {
 
             <div className="overflow-hidden rounded-4xl">
               <img
-                src="https://i.pinimg.com/736x/f7/b7/3d/f7b73d08eaff9d2b99f0847c4fce1c35.jpg?auto=format&fit=crop&w=1200&q=85"
+                src="https://i.pinimg.com/736x/69/a5/c1/69a5c13b63e30f29c9e470cde3162256.jpg?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
-                className="h-72 w-full object-cover md:h-105"
+                className="h-64 w-full rounded-3xl object-cover sm:h-80 md:h-26rem"
               />
             </div>
           </div>
         </section>
 
-        <section id="stays" className="mx-auto max-w-7xl px-5 py-14">
+        <section id="stays" className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-5 sm:py-14">
           <div className="mb-8">
             <p className="text-sm font-bold uppercase tracking-widest text-orange-700">
               Explore accommodation
@@ -1139,9 +1088,9 @@ function App() {
         {bookingStay && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setBookingStay(null)}>
             <section role="dialog" aria-modal="true" aria-label="Book a visit" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-              <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-wide text-orange-700">Visit request</p><h2 className="mt-1 text-2xl font-extrabold">Book a visit</h2><p className="mt-1 text-sm text-stone-600">{bookingStay.name || bookingStay.title}</p></div><button type="button" onClick={() => setBookingStay(null)} aria-label="Close booking form" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button></div>
+              <div className="flex items-start justify-between gap-4"><div><p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-orange-700"><Sparkles size={15} /> A little step closer</p><h2 className="mt-1 text-2xl font-extrabold">Book a visit</h2><p className="mt-1 text-sm text-stone-600">{bookingStay.name || bookingStay.title}</p></div><button type="button" onClick={() => setBookingStay(null)} aria-label="Close booking form" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button></div>
               {!currentUser && <p className="mt-4 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">Please log in to submit a visit request.</p>}
-              {bookingMessage ? <div className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{bookingMessage}</div> : <form className="mt-5 space-y-4" onSubmit={async (event) => {
+              {bookingMessage ? <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center text-sm text-emerald-800"><div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-600"><PartyPopper size={25} /></div><p className="font-bold">Request sent with love!</p><p className="mt-1">{bookingMessage}</p></div> : <form className="mt-5 space-y-4" onSubmit={async (event) => {
                 event.preventDefault();
                 if (!currentUser) {
                   setBookingStay(null);
