@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -18,7 +19,20 @@ import {
 } from "lucide-react";
 import { getFirestoreListings } from "./firestoreTest";
 import { db } from "./firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import {
   getAuth,
   onAuthStateChanged,
@@ -69,10 +83,103 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminChecking, setAdminChecking] = useState(true);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [adminTab, setAdminTab] = useState("overview");
+  const [visitRequests, setVisitRequests] = useState([]);
+  const [studentRequests, setStudentRequests] = useState([]);
+  const [showMyRequests, setShowMyRequests] = useState(false);
+  const [adminMessage, setAdminMessage] = useState("");
+  const [listingSaving, setListingSaving] = useState(false);
+  const [editingListingId, setEditingListingId] = useState(null);
+  const [listingForm, setListingForm] = useState({
+    name: "", location: "Palampur", institution: "Sri Sai University",
+    type: "Girls PG", rent: "", image: "", description: "", bathroom: "",
+    meals: "", furnished: "", facilities: "", availability: "Available",
+  });
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function verifyAdmin() {
+      if (!currentUser) {
+        setIsAdmin(false);
+        setAdminChecking(false);
+        setShowAdminDashboard(false);
+        return;
+      }
+
+      setAdminChecking(true);
+      try {
+        const adminRef = doc(db, "admins", currentUser.uid);
+        const adminSnap = await getDoc(adminRef);
+        if (active) {
+          setIsAdmin(adminSnap.exists() && adminSnap.data().role === "admin");
+        }
+      } catch (err) {
+        console.error("Admin verification failed:", err);
+        if (active) setIsAdmin(false);
+      } finally {
+        if (active) setAdminChecking(false);
+      }
+    }
+
+    void verifyAdmin();
+    return () => { active = false; };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || isAdmin) {
+      return undefined;
+    }
+
+    const studentRequestsQuery = query(
+      collection(db, "visitRequests"),
+      where("studentId", "==", currentUser.uid)
+    );
+    const unsubscribe = onSnapshot(
+      studentRequestsQuery,
+      (snapshot) => {
+        const requests = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        requests.sort((a, b) => {
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime;
+        });
+        setStudentRequests(requests);
+      },
+      (err) => {
+        console.error("Student visit requests loading failed:", err);
+      }
+    );
+    return unsubscribe;
+  }, [currentUser, isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || !showAdminDashboard) return undefined;
+
+    const requestsQuery = query(
+      collection(db, "visitRequests"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(
+      requestsQuery,
+      (snapshot) => {
+        setVisitRequests(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+      },
+      (err) => {
+        console.error("Visit requests loading failed:", err);
+        setAdminMessage("Could not load visit requests. Check Firestore rules.");
+      }
+    );
+
+    return unsubscribe;
+  }, [isAdmin, showAdminDashboard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,6 +385,100 @@ function App() {
     }
   }
 
+  function resetListingForm() {
+    setEditingListingId(null);
+    setListingForm({
+      name: "", location: "Palampur", institution: "Sri Sai University",
+      type: "Girls PG", rent: "", image: "", description: "", bathroom: "",
+      meals: "", furnished: "", facilities: "", availability: "Available",
+    });
+  }
+
+  function startEditListing(stay) {
+    setEditingListingId(stay.id);
+    setListingForm({
+      name: stay.name || stay.title || "",
+      location: stay.location || "Palampur",
+      institution: stay.institution || "",
+      type: stay.type || stay.roomType || "Girls PG",
+      rent: String(stay.rent ?? stay.price ?? ""),
+      image: stay.image || stay.imageUrl || "",
+      description: stay.description || "",
+      bathroom: stay.bathroom || "",
+      meals: stay.meals === true ? "Available" : String(stay.meals || ""),
+      furnished: stay.furnished || "",
+      facilities: Array.isArray(stay.facilities) ? stay.facilities.join(", ") : "",
+      availability: stay.availability || "Available",
+    });
+    setAdminTab("listings");
+    setAdminMessage("");
+  }
+
+  async function saveListing(event) {
+    event.preventDefault();
+    if (!isAdmin) return;
+    setListingSaving(true);
+    setAdminMessage("");
+    const payload = {
+      name: listingForm.name.trim(),
+      location: listingForm.location.trim(),
+      institution: listingForm.institution.trim(),
+      type: listingForm.type,
+      rent: Number(listingForm.rent),
+      image: listingForm.image.trim(),
+      description: listingForm.description.trim(),
+      bathroom: listingForm.bathroom,
+      meals: listingForm.meals,
+      furnished: listingForm.furnished,
+      facilities: listingForm.facilities.split(",").map((value) => value.trim()).filter(Boolean),
+      availability: listingForm.availability,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      if (editingListingId) {
+        await updateDoc(doc(db, "listings", editingListingId), payload);
+        setAdminMessage("Listing updated successfully.");
+      } else {
+        await addDoc(collection(db, "listings"), { ...payload, createdAt: serverTimestamp() });
+        setAdminMessage("New listing added successfully.");
+      }
+      resetListingForm();
+      await loadListings();
+    } catch (err) {
+      console.error("Saving listing failed:", err);
+      setAdminMessage("Could not save listing. Check that Firestore rules are published and your account is admin.");
+    } finally {
+      setListingSaving(false);
+    }
+  }
+
+  async function removeListing(listingId) {
+    if (!isAdmin || !window.confirm("Delete this listing permanently?")) return;
+    try {
+      await deleteDoc(doc(db, "listings", listingId));
+      setAdminMessage("Listing deleted.");
+      await loadListings();
+    } catch (err) {
+      console.error("Deleting listing failed:", err);
+      setAdminMessage("Could not delete listing. Check Firestore permissions.");
+    }
+  }
+
+  async function updateVisitRequest(requestId, status) {
+    if (!isAdmin) return;
+    try {
+      await updateDoc(doc(db, "visitRequests", requestId), {
+        status,
+        reviewedAt: serverTimestamp(),
+      });
+      setAdminMessage(`Visit request ${status.toLowerCase()}.`);
+    } catch (err) {
+      console.error("Updating visit request failed:", err);
+      setAdminMessage("Could not update request. Check Firestore permissions.");
+    }
+  }
+
   function resetFilters() {
     setSearch("");
     setInstitution("All institutions");
@@ -338,6 +539,24 @@ function App() {
             >
               About
             </a>
+            {currentUser && isAdmin && !adminChecking && (
+              <button
+                type="button"
+                onClick={() => { setShowAdminDashboard(true); setAdminTab("overview"); setShowWishlist(false); }}
+                className="rounded-full bg-orange-700 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-800 sm:px-4 sm:text-sm"
+              >
+                Admin Dashboard
+              </button>
+            )}
+            {currentUser && !isAdmin && !adminChecking && (
+              <button
+                type="button"
+                onClick={() => setShowMyRequests(true)}
+                className="rounded-full border border-orange-200 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-50 sm:px-4 sm:text-sm"
+              >
+                My Requests{studentRequests.filter((item) => item.status === "Pending").length > 0 ? ` (${studentRequests.filter((item) => item.status === "Pending").length})` : ""}
+              </button>
+            )}
             {currentUser ? (
               <div className="relative">
                 <button
@@ -379,6 +598,92 @@ function App() {
         </div>
       </header>
 
+      {showMyRequests && currentUser && !isAdmin && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center bg-stone-900/50 p-4" onClick={() => setShowMyRequests(false)}>
+          <section role="dialog" aria-modal="true" aria-label="My visit requests" className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-[#fffaf5] p-5 shadow-2xl sm:p-7" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div><p className="text-xs font-bold uppercase tracking-widest text-orange-700">StayHunt</p><h2 className="mt-1 text-2xl font-extrabold">My Visit Requests</h2><p className="mt-1 text-sm text-stone-600">Track the status of your property visit requests.</p></div>
+              <button type="button" onClick={() => setShowMyRequests(false)} aria-label="Close requests" className="rounded-full p-2 hover:bg-orange-100"><X size={20} /></button>
+            </div>
+            {studentRequests.length === 0 ? (
+              <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center"><CalendarDays className="mx-auto mb-3 text-orange-700" size={30} /><p className="font-bold">No visit requests yet</p><p className="mt-1 text-sm text-stone-600">Your submitted visit requests will appear here.</p></div>
+            ) : (
+              <div className="space-y-3">{studentRequests.map((request) => (
+                <article key={request.id} className="rounded-2xl border border-orange-100 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-stone-800">{request.listingName || "Stay visit"}</h3><p className="mt-1 text-sm text-stone-500">Preferred date: {request.visitDate || "Not specified"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-green-50 text-green-700" : request.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-800"}`}>{request.status || "Pending"}</span></div>
+                  {request.status === "Accepted" && <p className="mt-3 text-sm text-green-700">Your visit request has been accepted.</p>}
+                  {request.status === "Rejected" && <p className="mt-3 text-sm text-red-700">Your visit request was not accepted. You can explore other stays.</p>}
+                  {(!request.status || request.status === "Pending") && <p className="mt-3 text-sm text-stone-600">Your request is waiting for admin review.</p>}
+                </article>
+              ))}</div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {showAdminDashboard && isAdmin && (
+        <section className="fixed inset-0 z-70 overflow-y-auto bg-[#fffaf5]">
+          <div className="sticky top-0 z-10 border-b border-orange-100 bg-white/95 backdrop-blur">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-orange-700">StayHunt</p>
+                <h1 className="text-xl font-extrabold sm:text-2xl">Admin Dashboard</h1>
+              </div>
+              <button type="button" onClick={() => setShowAdminDashboard(false)} className="rounded-full border border-orange-200 px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-orange-50">Back to website</button>
+            </div>
+          </div>
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            <div className="mb-6 flex flex-wrap gap-2">
+              {[{id:"overview",label:"Overview"},{id:"listings",label:"Manage Listings"},{id:"requests",label:"Visit Requests"}].map((tab) => (
+                <button key={tab.id} type="button" onClick={() => { setAdminTab(tab.id); setAdminMessage(""); }} className={`rounded-full px-4 py-2 text-sm font-semibold ${adminTab === tab.id ? "bg-orange-700 text-white" : "border border-orange-200 bg-white text-stone-700 hover:bg-orange-50"}`}>{tab.label}</button>
+              ))}
+            </div>
+            {adminMessage && <p role="status" className="mb-5 rounded-xl border border-orange-200 bg-white p-3 text-sm text-stone-700">{adminMessage}</p>}
+
+            {adminTab === "overview" && (
+              <div>
+                <h2 className="mb-5 text-2xl font-extrabold">Dashboard overview</h2>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm text-stone-500">Total listings</p><p className="mt-2 text-3xl font-extrabold text-orange-800">{stays.length}</p></div>
+                  <div className="rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm text-stone-500">Available listings</p><p className="mt-2 text-3xl font-extrabold text-orange-800">{stays.filter((item) => String(item.availability || "Available").toLowerCase() === "available").length}</p></div>
+                  <div className="rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm text-stone-500">Pending visit requests</p><p className="mt-2 text-3xl font-extrabold text-orange-800">{visitRequests.filter((item) => item.status === "Pending").length}</p></div>
+                </div>
+                <div className="mt-6 rounded-2xl border border-orange-100 bg-white p-5"><h3 className="font-bold">Quick note</h3><p className="mt-2 text-sm leading-6 text-stone-600">Use Manage Listings to add or update sample accommodation data. Visit requests submitted by signed-in students will appear in the Visit Requests section.</p></div>
+              </div>
+            )}
+
+            {adminTab === "listings" && (
+              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                <form onSubmit={saveListing} className="rounded-2xl border border-orange-100 bg-white p-5">
+                  <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-xl font-extrabold">{editingListingId ? "Edit listing" : "Add a listing"}</h2>{editingListingId && <button type="button" onClick={resetListingForm} className="text-sm font-semibold text-orange-700">Cancel edit</button>}</div>
+                  <div className="space-y-3">
+                    <label className="block text-sm font-semibold">Property name<input required value={listingForm.name} onChange={(e) => setListingForm({...listingForm,name:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="e.g. Sample Girls PG" /></label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm font-semibold">Location<input required value={listingForm.location} onChange={(e) => setListingForm({...listingForm,location:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
+                      <label className="block text-sm font-semibold">Monthly rent<input required type="number" min="0" value={listingForm.rent} onChange={(e) => setListingForm({...listingForm,rent:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm font-semibold">Room type<select value={listingForm.type} onChange={(e) => setListingForm({...listingForm,type:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 bg-white px-3 py-2.5 font-normal"><option>Girls PG</option><option>Boys PG</option><option>Private Room</option><option>Shared Room</option></select></label>
+                      <label className="block text-sm font-semibold">Availability<select value={listingForm.availability} onChange={(e) => setListingForm({...listingForm,availability:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 bg-white px-3 py-2.5 font-normal"><option>Available</option><option>Full</option></select></label>
+                    </div>
+                    <label className="block text-sm font-semibold">Institution<input value={listingForm.institution} onChange={(e) => setListingForm({...listingForm,institution:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
+                    <label className="block text-sm font-semibold">Image URL<input value={listingForm.image} onChange={(e) => setListingForm({...listingForm,image:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="https://..." /></label>
+                    <label className="block text-sm font-semibold">Facilities (comma separated)<input value={listingForm.facilities} onChange={(e) => setListingForm({...listingForm,facilities:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="Wi-Fi, Meals, Laundry" /></label>
+                    <label className="block text-sm font-semibold">Description<textarea value={listingForm.description} onChange={(e) => setListingForm({...listingForm,description:e.target.value})} rows="3" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
+                    <button disabled={listingSaving} type="submit" className="w-full rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800 disabled:opacity-60">{listingSaving ? "Saving..." : editingListingId ? "Save changes" : "Add listing"}</button>
+                  </div>
+                </form>
+                <div className="space-y-3"><h2 className="text-xl font-extrabold">Existing listings ({stays.length})</h2>{stays.map((stay) => <div key={stay.id} className="flex flex-col gap-3 rounded-2xl border border-orange-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="font-bold">{stay.name || stay.title || "Unnamed listing"}</p><p className="text-sm text-stone-500">{stay.location || "Palampur"} · ₹{Number(stay.rent ?? stay.price ?? 0).toLocaleString("en-IN")} · {stay.availability || "Availability not set"}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => startEditListing(stay)} className="rounded-full border border-orange-200 px-3 py-1.5 text-sm font-semibold text-orange-800">Edit</button><button type="button" onClick={() => removeListing(stay.id)} className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-600">Delete</button></div></div>)}</div>
+              </div>
+            )}
+
+            {adminTab === "requests" && (
+              <div><h2 className="mb-5 text-2xl font-extrabold">Visit requests</h2>{visitRequests.length === 0 ? <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center text-stone-600">No visit requests received yet.</div> : <div className="grid gap-4 md:grid-cols-2">{visitRequests.map((request) => <article key={request.id} className="rounded-2xl border border-orange-100 bg-white p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{request.listingName || "Stay visit"}</h3><p className="mt-1 text-sm text-stone-500">{request.studentName || "Student"} · {request.studentEmail || "No email"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${request.status === "Accepted" ? "bg-green-50 text-green-700" : request.status === "Rejected" ? "bg-red-50 text-red-700" : "bg-orange-50 text-orange-800"}`}>{request.status || "Pending"}</span></div><div className="mt-3 space-y-1 text-sm text-stone-600"><p>Phone: {request.phone || "Not provided"}</p><p>Preferred date: {request.visitDate || "Not provided"}</p></div>{request.status === "Pending" && <div className="mt-4 flex gap-2"><button type="button" onClick={() => updateVisitRequest(request.id,"Accepted")} className="rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white">Accept</button><button type="button" onClick={() => updateVisitRequest(request.id,"Rejected")} className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white">Reject</button></div>}</article>)}</div>}</div>
+            )}
+          </div>
+        </section>
+      )}
+
       <main id="home">
         <section className="relative overflow-hidden bg-[#fff0e5]">
           <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-16 md:grid-cols-2 md:py-24">
@@ -407,7 +712,7 @@ function App() {
 
             <div className="overflow-hidden rounded-4xl">
               <img
-                src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=85"
+                src="https://i.pinimg.com/736x/f7/b7/3d/f7b73d08eaff9d2b99f0847c4fce1c35.jpg?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
                 className="h-72 w-full object-cover md:h-105"
               />
@@ -835,11 +1140,38 @@ function App() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setBookingStay(null)}>
             <section role="dialog" aria-modal="true" aria-label="Book a visit" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-wide text-orange-700">Visit request</p><h2 className="mt-1 text-2xl font-extrabold">Book a visit</h2><p className="mt-1 text-sm text-stone-600">{bookingStay.name || bookingStay.title}</p></div><button type="button" onClick={() => setBookingStay(null)} aria-label="Close booking form" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button></div>
-              {bookingMessage ? <div className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{bookingMessage}</div> : <form className="mt-5 space-y-4" onSubmit={(event) => { event.preventDefault(); setBookingMessage("Your visit request is prepared for this demo. It has not been sent to the property owner because booking submission is not connected yet."); }}>
+              {!currentUser && <p className="mt-4 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">Please log in to submit a visit request.</p>}
+              {bookingMessage ? <div className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{bookingMessage}</div> : <form className="mt-5 space-y-4" onSubmit={async (event) => {
+                event.preventDefault();
+                if (!currentUser) {
+                  setBookingStay(null);
+                  openAuth("login");
+                  setAuthError("Please log in before sending a visit request.");
+                  return;
+                }
+                const form = new FormData(event.currentTarget);
+                try {
+                  await addDoc(collection(db, "visitRequests"), {
+                    listingId: bookingStay.id,
+                    listingName: bookingStay.name || bookingStay.title || "Stay",
+                    studentId: currentUser.uid,
+                    studentEmail: currentUser.email || "",
+                    studentName: String(form.get("visitorName") || "").trim(),
+                    phone: String(form.get("visitorPhone") || "").trim(),
+                    visitDate: String(form.get("visitDate") || ""),
+                    status: "Pending",
+                    createdAt: serverTimestamp(),
+                  });
+                  setBookingMessage("Your visit request has been sent successfully. You can check its status after the admin reviews it.");
+                } catch (err) {
+                  console.error("Visit request submission failed:", err);
+                  setBookingMessage("The request could not be sent. Please check your connection and Firestore rules.");
+                }
+              }}>
                 <label className="block text-sm font-semibold">Your name<input required name="visitorName" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter your name" /></label>
                 <label className="block text-sm font-semibold">Phone number<input required name="visitorPhone" type="tel" pattern="[0-9+() -]{7,18}" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter phone number" /></label>
                 <label className="block text-sm font-semibold">Preferred visit date<input required name="visitDate" type="date" min={new Date().toISOString().split("T")[0]} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" /></label>
-                <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Prepare visit request</button>
+                <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Send visit request</button>
               </form>}
               {bookingMessage && <button type="button" onClick={() => setBookingStay(null)} className="mt-4 w-full rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white">Done</button>}
             </section>
