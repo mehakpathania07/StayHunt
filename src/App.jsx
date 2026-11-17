@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   MapPin,
@@ -21,15 +21,18 @@ import {
   CheckCircle2,
   Clock3,
   PartyPopper,
+  ArrowUp,
 } from "lucide-react";
 import { getFirestoreListings } from "./firestoreTest";
 import { db } from "./firebase";
+import confetti from "canvas-confetti";
 import {
   addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -75,15 +78,23 @@ function App() {
   const [selectedStay, setSelectedStay] = useState(null);
   const [bookingStay, setBookingStay] = useState(null);
   const [bookingMessage, setBookingMessage] = useState("");
+  const [bookingError, setBookingError] = useState("");
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const bookingSubmittingRef = useRef(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastTimerRef = useRef(null);
   const [roomType, setRoomType] = useState("All types");
   const [maxRent, setMaxRent] = useState("10000");
   const [wifiOnly, setWifiOnly] = useState(false);
   const [mealsOnly, setMealsOnly] = useState(false);
   const [wishlist, setWishlist] = useState([]);
+  const [wishlistReady, setWishlistReady] = useState(false);
+  const [heartPopId, setHeartPopId] = useState(null);
   const [showWishlist, setShowWishlist] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [requestView, setRequestView] = useState("active");
   const [showAuth, setShowAuth] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -109,6 +120,46 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const nodes = document.querySelectorAll("[data-reveal]");
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      nodes.forEach((node) => node.classList.add("is-visible"));
+      return undefined;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [stays.length, showWishlist, loading]);
+
+  useEffect(() => () => window.clearTimeout(toastTimerRef.current), []);
+
+  useEffect(() => {
+    const handleScroll = () => setShowBackToTop(window.scrollY > 420);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  function scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    });
+  }
+
+  function showToast(message) {
+    setToastMessage(message);
+    window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToastMessage(""), 3200);
+  }
 
   useEffect(() => {
     let active = true;
@@ -194,18 +245,21 @@ function App() {
     async function loadUserWishlist() {
       if (!currentUser) {
         setWishlist([]);
+        setWishlistReady(true);
         return;
       }
+      if (!cancelled) setWishlistReady(false);
 
       try {
         const wishlistRef = doc(db, "wishlists", currentUser.uid);
         const snapshot = await getDoc(wishlistRef);
         if (!cancelled) {
           setWishlist(snapshot.exists() ? snapshot.data().listingIds || [] : []);
+          setWishlistReady(true);
         }
       } catch (err) {
         console.error("Wishlist loading error:", err);
-        if (!cancelled) setWishlist([]);
+        if (!cancelled) { setWishlist([]); setWishlistReady(true); }
       }
     }
 
@@ -377,18 +431,21 @@ function App() {
       setAuthError("Please log in to use your wishlist.");
       return;
     }
+    if (!wishlistReady) {
+      showToast("Your wishlist is still loading. Please try again in a moment.");
+      return;
+    }
 
-    const updated = wishlist.includes(id)
-      ? wishlist.filter((item) => item !== id)
-      : [...wishlist, id];
-
+    const wasSaved = wishlist.includes(id);
+    const updated = wasSaved ? wishlist.filter((item) => item !== id) : [...wishlist, id];
     try {
       await setDoc(doc(db, "wishlists", currentUser.uid), { listingIds: updated }, { merge: true });
       setWishlist(updated);
+      if (!wasSaved) { setHeartPopId(id); showToast("Added to your wishlist!"); }
+      else setHeartPopId(null);
     } catch (err) {
       console.error("Wishlist saving error:", err);
-      openAuth("login");
-      setAuthError("Wishlist could not be saved. Please check Firebase rules and try again.");
+      showToast("Wishlist could not be saved. Please check your connection and Firebase rules.");
     }
   }
 
@@ -502,7 +559,9 @@ function App() {
 
   function openStays() {
     setShowWishlist(false);
-    document.getElementById("stays")?.scrollIntoView({ behavior: "smooth" });
+    setMobileMenuOpen(false);
+    setShowAdminDashboard(false);
+    requestAnimationFrame(() => document.getElementById("stays")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
   }
 
   function openWishlist() {
@@ -512,12 +571,98 @@ function App() {
       return;
     }
     setShowWishlist(true);
-    document.getElementById("stays")?.scrollIntoView({ behavior: "smooth" });
+    setMobileMenuOpen(false);
+    requestAnimationFrame(() => document.getElementById("stays")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
+  }
+
+  async function handleBookingSubmit(event) {
+    event.preventDefault();
+    if (bookingSubmittingRef.current) return;
+    if (!currentUser) {
+      setBookingStay(null);
+      openAuth("login");
+      setAuthError("Please log in before sending a visit request.");
+      return;
+    }
+    if (!bookingStay) return;
+
+    const form = new FormData(event.currentTarget);
+    const visitorName = String(form.get("visitorName") || "").trim();
+    const visitorPhone = String(form.get("visitorPhone") || "").trim();
+    const visitDate = String(form.get("visitDate") || "");
+    if (!visitorName || !visitorPhone || !visitDate) {
+      setBookingError("Please complete all fields.");
+      return;
+    }
+
+    bookingSubmittingRef.current = true;
+    setBookingSubmitting(true);
+    setBookingError("");
+    try {
+      const existingQuery = query(
+        collection(db, "visitRequests"),
+        where("studentId", "==", currentUser.uid),
+        where("listingId", "==", bookingStay.id),
+        where("status", "==", "Pending")
+      );
+      const existingSnapshot = await getDocs(existingQuery);
+      const legacyPending = studentRequests.some((request) =>
+        request.listingId === bookingStay.id && (!request.status || request.status === "Pending")
+      );
+      if (!existingSnapshot.empty || legacyPending) {
+        setBookingError("You already have a pending visit request for this stay.");
+        return;
+      }
+
+      await addDoc(collection(db, "visitRequests"), {
+        listingId: bookingStay.id,
+        listingName: bookingStay.name || bookingStay.title || "Stay",
+        studentId: currentUser.uid,
+        studentEmail: currentUser.email || "",
+        studentName: visitorName,
+        phone: visitorPhone,
+        visitDate,
+        status: "Pending",
+        createdAt: serverTimestamp(),
+      });
+      setBookingMessage("Your visit request has been sent successfully. You can check its status after the admin reviews it.");
+      try {
+        confetti({ particleCount: 85, spread: 65, origin: { y: 0.65 } });
+      } catch (confettiError) {
+        console.warn("Confetti animation unavailable:", confettiError);
+      }
+    } catch (err) {
+      console.error("Visit request submission failed:", err);
+      setBookingError("The request could not be sent. Please check your connection and Firestore rules, then try again.");
+    } finally {
+      bookingSubmittingRef.current = false;
+      setBookingSubmitting(false);
+    }
   }
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[#fffaf5] text-stone-800">
-      <style>{`html, body, #root { max-width: 100%; overflow-x: hidden; } img { max-width: 100%; } button, a { -webkit-tap-highlight-color: transparent; }`}</style>
+      <style>{`
+        html, body, #root { max-width: 100%; overflow-x: hidden; scroll-behavior: smooth; }
+        img { max-width: 100%; } button, a { -webkit-tap-highlight-color: transparent; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes floatPhoto { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+        @keyframes driftCloud { from { transform: translateX(-8vw); } to { transform: translateX(110vw); } }
+        @keyframes heartPop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes emptyHeartFloat { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-7px) rotate(4deg); } }
+        @keyframes softPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(194,65,12,.12); } 50% { box-shadow: 0 0 0 12px rgba(194,65,12,0); } }
+        .empty-wishlist-icon { animation: emptyHeartFloat 3s ease-in-out infinite, softPulse 3s ease-in-out infinite; }
+        .floating-action { animation: fadeUp .25s ease-out both; box-shadow: 0 10px 28px rgba(124,45,18,.18); }
+        .hero-enter { animation: fadeUp .75s both; } .hero-enter-2 { animation: fadeUp .8s .12s both; } .hero-enter-3 { animation: fadeUp .8s .24s both; } .hero-photo { animation: floatPhoto 6s ease-in-out infinite; }
+        [data-reveal] { opacity: 0; transform: translateY(20px); transition: opacity .65s ease, transform .65s ease; }
+        [data-reveal].is-visible { opacity: 1; transform: translateY(0); }
+        .stay-card:hover img { transform: scale(1.045); } .stay-card img { transition: transform .55s ease; }
+        .heart-pop { animation: heartPop .38s ease; } .modal-panel { animation: modalIn .22s ease-out both; }
+        .cloud { position:absolute; width:100px; height:28px; border-radius:999px; background:rgba(255,255,255,.58); filter:blur(.2px); animation:driftCloud 42s linear infinite; }
+        .cloud:before,.cloud:after { content:""; position:absolute; bottom:8px; border-radius:50%; background:inherit; } .cloud:before { width:38px;height:38px;left:17px; } .cloud:after { width:48px;height:48px;left:43px; }
+        @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } .cloud { display:none !important; } [data-reveal] { opacity:1; transform:none; } }
+      `}</style>
       <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
           <a href="#home" onClick={() => setMobileMenuOpen(false)} className="shrink-0 text-[1.65rem] font-extrabold tracking-tight sm:text-2xl">
@@ -594,7 +739,7 @@ function App() {
                   <div className="rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm text-stone-500">Available listings</p><p className="mt-2 text-3xl font-extrabold text-orange-800">{stays.filter((item) => String(item.availability || "Available").toLowerCase() === "available").length}</p></div>
                   <div className="rounded-2xl border border-orange-100 bg-white p-5"><p className="text-sm text-stone-500">Pending visit requests</p><p className="mt-2 text-3xl font-extrabold text-orange-800">{visitRequests.filter((item) => item.status === "Pending").length}</p></div>
                 </div>
-                <div className="mt-6 rounded-2xl border border-orange-100 bg-white p-5"><h3 className="font-bold">Quick note</h3><p className="mt-2 text-sm leading-6 text-stone-600">Use Manage Listings to add or update sample accommodation data. Visit requests submitted by signed-in students will appear in the Visit Requests section.</p></div>
+                <div className="mt-6 rounded-2xl border border-orange-100 bg-white p-5"><h3 className="font-bold">Quick note</h3><p className="mt-2 text-sm leading-6 text-stone-600">Use Manage Listings to add or update accommodation details. Visit requests submitted by signed-in students will appear in the Visit Requests section.</p></div>
               </div>
             )}
 
@@ -603,7 +748,7 @@ function App() {
                 <form onSubmit={saveListing} className="rounded-2xl border border-orange-100 bg-white p-5">
                   <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-xl font-extrabold">{editingListingId ? "Edit listing" : "Add a listing"}</h2>{editingListingId && <button type="button" onClick={resetListingForm} className="text-sm font-semibold text-orange-700">Cancel edit</button>}</div>
                   <div className="space-y-3">
-                    <label className="block text-sm font-semibold">Property name<input required value={listingForm.name} onChange={(e) => setListingForm({...listingForm,name:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="e.g. Sample Girls PG" /></label>
+                    <label className="block text-sm font-semibold">Property name<input required value={listingForm.name} onChange={(e) => setListingForm({...listingForm,name:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="e.g. Katoch Girls PG" /></label>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="block text-sm font-semibold">Location<input required value={listingForm.location} onChange={(e) => setListingForm({...listingForm,location:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
                       <label className="block text-sm font-semibold">Monthly rent<input required type="number" min="0" value={listingForm.rent} onChange={(e) => setListingForm({...listingForm,rent:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
@@ -635,31 +780,38 @@ function App() {
 
       <main id="home">
         <section className="relative overflow-hidden bg-[#fff0e5]">
+          <div className="cloud" aria-hidden="true" style={{ top: "15%", left: "-15%" }} />
+          <div className="cloud" aria-hidden="true" style={{ top: "29%", left: "-35%", animationDelay: "-18s", transform: "scale(.72)" }} />
+          <svg aria-hidden="true" className="pointer-events-none absolute bottom-0 left-0 h-36 w-full" viewBox="0 0 1440 180" preserveAspectRatio="none">
+            <path d="M0 125 L155 35 L235 88 L360 8 L500 112 L620 45 L760 130 L900 28 L1055 112 L1190 42 L1320 105 L1440 55 L1440 180 L0 180Z" fill="#f3c5a8" opacity=".78" />
+            <path d="M310 35 L360 8 L405 43 L380 36 L360 20 L340 43Z M850 55 L900 28 L950 62 L920 51 L900 39 L880 58Z M1155 58 L1190 42 L1225 67 L1200 59 L1190 51 L1178 65Z" fill="#fffaf5" opacity=".95" />
+            <path d="M0 145 Q220 100 420 145 T840 142 T1260 138 T1440 130 L1440 180 L0 180Z" fill="#fffaf5" />
+          </svg>
           <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 px-4 py-10 sm:px-5 sm:py-14 md:grid-cols-2 md:py-24">
             <div>
-              <p className="mb-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-orange-800">
+              <p className="hero-enter mb-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-orange-800">
                 Student stays in Palampur
               </p>
 
-              <h1 className="max-w-full wrap-break-word text-[2.15rem] font-extrabold leading-[1.12] tracking-tight sm:text-5xl md:max-w-xl md:text-6xl">
+              <h1 className="hero-enter-2 max-w-full wrap-break-word text-[2.15rem] font-extrabold leading-[1.12] tracking-tight sm:text-5xl md:max-w-xl md:text-6xl">
                 Find a place that feels like{" "}
                 <span className="text-orange-700">home.</span>
               </h1>
 
-              <p className="mt-5 max-w-lg text-base leading-7 text-stone-600 sm:text-lg">
+              <p className="hero-enter-3 mt-5 max-w-lg text-base leading-7 text-stone-600 sm:text-lg">
                 Explore student-friendly PGs and rooms near selected colleges
                 and universities in Palampur, Himachal Pradesh.
               </p>
 
               <a
                 href="#stays"
-                className="mt-7 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white hover:bg-orange-800"
+                className="hero-enter-3 mt-7 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white hover:bg-orange-800"
               >
                 Find your stay <Search size={18} />
               </a>
             </div>
 
-            <div className="overflow-hidden rounded-4xl">
+            <div className="overflow-hidden rounded-4xl hero-photo">
               <img
                 src="https://i.pinimg.com/736x/69/a5/c1/69a5c13b63e30f29c9e470cde3162256.jpg?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
@@ -797,11 +949,8 @@ function App() {
           </div>
 
           {loading && (
-            <div className="rounded-2xl border border-orange-100 bg-white p-10 text-center">
-              <p className="font-semibold">Loading StayHunt listings...</p>
-              <p className="mt-2 text-sm text-slate-500">
-                Connecting to Firestore.
-              </p>
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-label="Loading stays">
+              {[1, 2, 3].map((item) => <div key={item} className="overflow-hidden rounded-3xl border border-orange-100 bg-white p-4 animate-pulse"><div className="h-48 rounded-2xl bg-orange-100" /><div className="mt-4 h-5 w-3/4 rounded bg-stone-100" /><div className="mt-3 h-4 w-1/2 rounded bg-stone-100" /><div className="mt-5 h-10 rounded-xl bg-stone-100" /></div>)}
             </div>
           )}
 
@@ -820,7 +969,7 @@ function App() {
 
           {!loading && !error && displayedStays.length === 0 && (
             <div className="mx-auto max-w-2xl rounded-3xl border border-orange-100 bg-white px-6 py-12 text-center shadow-sm sm:px-10">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#fff0e5]">
+              <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#fff0e5] ${showWishlist ? "empty-wishlist-icon" : ""}`}>
                 <Heart
                   size={36}
                   className={showWishlist ? "fill-orange-200 text-orange-700" : "text-orange-700"}
@@ -870,7 +1019,8 @@ function App() {
                 return (
                   <article
                     key={stay.id}
-                    className="overflow-hidden rounded-3xl border border-orange-100 bg-white transition hover:-translate-y-1 hover:shadow-lg"
+                    data-reveal
+                    className="stay-card overflow-hidden rounded-3xl border border-orange-100 bg-white transition hover:-translate-y-1 hover:shadow-lg"
                   >
                     <div className="relative h-56 bg-orange-50">
                       {stay.image || stay.imageUrl ? (
@@ -897,11 +1047,7 @@ function App() {
                       >
                         <Heart
                           size={18}
-                          className={
-                            wishlist.includes(stay.id)
-                              ? "fill-red-500 text-red-500"
-                              : "text-stone-600"
-                          }
+                          className={wishlist.includes(stay.id) ? `${heartPopId === stay.id ? "heart-pop " : ""}fill-red-500 text-red-500` : "text-stone-600"}
                         />
                       </button>
                       <button
@@ -981,9 +1127,7 @@ function App() {
                             </span>
                           </p>
                         </div>
-                        <span className="text-xs text-slate-500">
-                          Sample listing
-                        </span>
+
                       </div>
 
                       {stay.description && (
@@ -993,7 +1137,7 @@ function App() {
                       )}
                       <button
                         type="button"
-                        onClick={() => { setBookingMessage(""); setBookingStay(stay); }}
+                        onClick={() => { setBookingMessage(""); setBookingError(""); setBookingStay(stay); }}
                         className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"
                       >
                         <CalendarDays size={18} /> Book a visit
@@ -1018,7 +1162,7 @@ function App() {
               role="dialog"
               aria-modal="true"
               aria-label="Login or sign up"
-              className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+              className="modal-panel max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">
@@ -1064,7 +1208,7 @@ function App() {
 
         {selectedStay && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setSelectedStay(null)}>
-            <section role="dialog" aria-modal="true" aria-label="Stay details" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <section role="dialog" aria-modal="true" aria-label="Stay details" className="modal-panel max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-start justify-between gap-4">
                 <div><p className="text-sm font-bold uppercase tracking-wide text-orange-700">Stay details</p><h2 className="mt-1 text-2xl font-extrabold">{selectedStay.name || selectedStay.title || "Stay details"}</h2></div>
                 <button type="button" onClick={() => setSelectedStay(null)} aria-label="Close details" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button>
@@ -1080,49 +1224,24 @@ function App() {
               </div>
               {selectedStay.description && <p className="mt-4 leading-6 text-stone-600">{selectedStay.description}</p>}
               {Array.isArray(selectedStay.facilities) && selectedStay.facilities.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{selectedStay.facilities.map((item, index) => <span key={`${item}-${index}`} className="rounded-full bg-orange-50 px-3 py-1 text-sm">{item}</span>)}</div>}
-              <button type="button" onClick={() => { setBookingMessage(""); setBookingStay(selectedStay); setSelectedStay(null); }} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Book a visit</button>
+              <button type="button" onClick={() => { setBookingMessage(""); setBookingError(""); setBookingStay(selectedStay); setSelectedStay(null); }} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Book a visit</button>
             </section>
           </div>
         )}
 
         {bookingStay && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={() => setBookingStay(null)}>
-            <section role="dialog" aria-modal="true" aria-label="Book a visit" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-              <div className="flex items-start justify-between gap-4"><div><p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-orange-700"><Sparkles size={15} /> A little step closer</p><h2 className="mt-1 text-2xl font-extrabold">Book a visit</h2><p className="mt-1 text-sm text-stone-600">{bookingStay.name || bookingStay.title}</p></div><button type="button" onClick={() => setBookingStay(null)} aria-label="Close booking form" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button></div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={() => { if (!bookingSubmitting) { setBookingStay(null); setBookingError(""); } }}>
+            <section role="dialog" aria-modal="true" aria-label="Book a visit" className="modal-panel w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4"><div><p className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-orange-700"><Sparkles size={15} /> A little step closer</p><h2 className="mt-1 text-2xl font-extrabold">Book a visit</h2><p className="mt-1 text-sm text-stone-600">{bookingStay.name || bookingStay.title}</p></div><button type="button" onClick={() => { if (!bookingSubmitting) { setBookingStay(null); setBookingError(""); } }} disabled={bookingSubmitting} aria-label="Close booking form" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button></div>
               {!currentUser && <p className="mt-4 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">Please log in to submit a visit request.</p>}
-              {bookingMessage ? <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center text-sm text-emerald-800"><div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-600"><PartyPopper size={25} /></div><p className="font-bold">Request sent with love!</p><p className="mt-1">{bookingMessage}</p></div> : <form className="mt-5 space-y-4" onSubmit={async (event) => {
-                event.preventDefault();
-                if (!currentUser) {
-                  setBookingStay(null);
-                  openAuth("login");
-                  setAuthError("Please log in before sending a visit request.");
-                  return;
-                }
-                const form = new FormData(event.currentTarget);
-                try {
-                  await addDoc(collection(db, "visitRequests"), {
-                    listingId: bookingStay.id,
-                    listingName: bookingStay.name || bookingStay.title || "Stay",
-                    studentId: currentUser.uid,
-                    studentEmail: currentUser.email || "",
-                    studentName: String(form.get("visitorName") || "").trim(),
-                    phone: String(form.get("visitorPhone") || "").trim(),
-                    visitDate: String(form.get("visitDate") || ""),
-                    status: "Pending",
-                    createdAt: serverTimestamp(),
-                  });
-                  setBookingMessage("Your visit request has been sent successfully. You can check its status after the admin reviews it.");
-                } catch (err) {
-                  console.error("Visit request submission failed:", err);
-                  setBookingMessage("The request could not be sent. Please check your connection and Firestore rules.");
-                }
-              }}>
-                <label className="block text-sm font-semibold">Your name<input required name="visitorName" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter your name" /></label>
-                <label className="block text-sm font-semibold">Phone number<input required name="visitorPhone" type="tel" pattern="[0-9+() -]{7,18}" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter phone number" /></label>
-                <label className="block text-sm font-semibold">Preferred visit date<input required name="visitDate" type="date" min={new Date().toISOString().split("T")[0]} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" /></label>
-                <button type="submit" className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Send visit request</button>
+              {bookingMessage ? <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-center text-sm text-emerald-800"><div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white text-emerald-600"><PartyPopper size={25} /></div><p className="font-bold">Request sent with love!</p><p className="mt-1">{bookingMessage}</p></div> : <form className="mt-5 space-y-4" onSubmit={handleBookingSubmit}>
+                {bookingError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{bookingError}</p>}
+                <label className="block text-sm font-semibold">Your name<input required name="visitorName" autoComplete="name" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter your name" /></label>
+                <label className="block text-sm font-semibold">Phone number<input required name="visitorPhone" type="tel" pattern="[0-9+() -]{7,18}" autoComplete="tel" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" placeholder="Enter phone number" /></label>
+                <label className="block text-sm font-semibold">Preferred visit date<input required name="visitDate" type="date" min={new Date().toLocaleDateString("en-CA")} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-3 font-normal" /></label>
+                <button type="submit" disabled={bookingSubmitting} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-60"><CalendarDays size={18} /> {bookingSubmitting ? "Sending..." : "Send visit request"}</button>
               </form>}
-              {bookingMessage && <button type="button" onClick={() => setBookingStay(null)} className="mt-4 w-full rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white">Done</button>}
+              {bookingMessage && <button type="button" onClick={() => { setBookingStay(null); setBookingError(""); }} className="mt-4 w-full rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white">Done</button>}
             </section>
           </div>
         )}
@@ -1242,17 +1361,44 @@ function App() {
             </div>
           </div>
         </section>
+
+
       </main>
 
-      <footer className="border-t border-orange-100 bg-white px-5 py-6">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-2 text-sm text-slate-500 sm:flex-row">
-          <p>
-            <span className="font-extrabold text-stone-800">StayHunt</span>{" "}
-            · Student accommodation finder
-          </p>
-          <p>Focused on Palampur, Himachal Pradesh</p>
+      <footer className="border-t border-orange-100 bg-[#fff7ef] px-5 pb-6 pt-10">
+        <div className="mx-auto grid max-w-7xl gap-9 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="lg:col-span-2">
+            <a href="#home" onClick={scrollToTop} className="inline-flex items-center text-2xl font-extrabold tracking-tight text-stone-800">
+              Stay<span className="text-orange-700">Hunt</span><Sparkles size={15} className="ml-1 text-orange-500" />
+            </a>
+            <p className="mt-3 max-w-md text-sm leading-7 text-stone-600">A student-focused accommodation finder to help you explore rooms and PGs around Palampur and nearby institutions.</p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-orange-700">Your stay. Your comfort. Your choice.</p>
+          </div>
+          <div>
+            <h3 className="font-extrabold text-stone-800">Quick links</h3>
+            <div className="mt-4 flex flex-col items-start gap-3 text-sm text-stone-600">
+              <button type="button" onClick={openStays} className="transition hover:text-orange-700">Explore stays</button>
+              <button type="button" onClick={openWishlist} className="transition hover:text-orange-700">My wishlist</button>
+              <a href="#about" className="transition hover:text-orange-700">About us</a>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-extrabold text-stone-800">Contact</h3>
+            <div className="mt-4 space-y-3 text-sm text-stone-600">
+              <a href="tel:9317424196" className="block transition hover:text-orange-700">+91 9317424196</a>
+              <p>Nurpur, Kangra,<br />Himachal Pradesh, India</p>
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto mt-9 flex max-w-7xl flex-col justify-between gap-2 border-t border-orange-100 pt-5 text-xs text-stone-500 sm:flex-row">
+          <p>© {new Date().getFullYear()} StayHunt. All rights reserved.</p>
+          <p>Made for students, with care · Palampur, Himachal Pradesh</p>
         </div>
       </footer>
+      <div className="fixed bottom-5 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
+        {showBackToTop && <button type="button" onClick={scrollToTop} aria-label="Back to top" title="Back to top" className="floating-action inline-flex h-11 w-11 items-center justify-center rounded-full border border-orange-100 bg-white text-orange-800 transition hover:-translate-y-1 hover:bg-orange-50"><ArrowUp size={19} /></button>}
+      </div>
+      {toastMessage && <div role="status" className="fixed bottom-5 left-1/2 z-100 -translate-x-1/2 rounded-full bg-stone-900 px-5 py-3 text-sm font-semibold text-white shadow-xl">{toastMessage}</div>}
     </div>
   );
 }
