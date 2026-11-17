@@ -661,6 +661,13 @@ function App() {
         .heart-pop { animation: heartPop .38s ease; } .modal-panel { animation: modalIn .22s ease-out both; }
         .cloud { position:absolute; width:100px; height:28px; border-radius:999px; background:rgba(255,255,255,.58); filter:blur(.2px); animation:driftCloud 42s linear infinite; }
         .cloud:before,.cloud:after { content:""; position:absolute; bottom:8px; border-radius:50%; background:inherit; } .cloud:before { width:38px;height:38px;left:17px; } .cloud:after { width:48px;height:48px;left:43px; }
+        @media (max-width: 767px) {
+          .hero-photo { animation: none !important; border-radius: 24px; }
+          .hero-photo img { height: 210px !important; object-position: center 54%; }
+          .hero-clouds, .hero-mountains { display: none !important; }
+          .hero-copy h1 { max-width: 12ch; font-size: clamp(2rem, 8vw, 2.45rem); line-height: 1.08; }
+          .hero-copy p { font-size: 15px; line-height: 1.6; }
+        }
         @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } .cloud { display:none !important; } [data-reveal] { opacity:1; transform:none; } }
       `}</style>
       <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
@@ -780,38 +787,38 @@ function App() {
 
       <main id="home">
         <section className="relative overflow-hidden bg-[#fff0e5]">
-          <div className="cloud" aria-hidden="true" style={{ top: "15%", left: "-15%" }} />
-          <div className="cloud" aria-hidden="true" style={{ top: "29%", left: "-35%", animationDelay: "-18s", transform: "scale(.72)" }} />
-          <svg aria-hidden="true" className="pointer-events-none absolute bottom-0 left-0 h-36 w-full" viewBox="0 0 1440 180" preserveAspectRatio="none">
+          <div className="hero-clouds cloud" aria-hidden="true" style={{ top: "15%", left: "-15%" }} />
+          <div className="hero-clouds cloud" aria-hidden="true" style={{ top: "29%", left: "-35%", animationDelay: "-18s", transform: "scale(.72)" }} />
+          <svg aria-hidden="true" className="hero-mountains pointer-events-none absolute bottom-0 left-0 h-36 w-full" viewBox="0 0 1440 180" preserveAspectRatio="none">
             <path d="M0 125 L155 35 L235 88 L360 8 L500 112 L620 45 L760 130 L900 28 L1055 112 L1190 42 L1320 105 L1440 55 L1440 180 L0 180Z" fill="#f3c5a8" opacity=".78" />
             <path d="M310 35 L360 8 L405 43 L380 36 L360 20 L340 43Z M850 55 L900 28 L950 62 L920 51 L900 39 L880 58Z M1155 58 L1190 42 L1225 67 L1200 59 L1190 51 L1178 65Z" fill="#fffaf5" opacity=".95" />
             <path d="M0 145 Q220 100 420 145 T840 142 T1260 138 T1440 130 L1440 180 L0 180Z" fill="#fffaf5" />
           </svg>
-          <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-8 px-4 py-10 sm:px-5 sm:py-14 md:grid-cols-2 md:py-24">
-            <div>
-              <p className="hero-enter mb-4 inline-flex rounded-full bg-white px-4 py-2 text-sm font-semibold text-orange-800">
+          <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-6 px-5 py-8 sm:gap-8 sm:px-5 sm:py-14 md:grid-cols-2 md:py-24">
+            <div className="hero-copy">
+              <p className="hero-enter mb-3 inline-flex rounded-full bg-white px-4 py-2 text-xs font-semibold text-orange-800 sm:mb-4 sm:text-sm">
                 Student stays in Palampur
               </p>
 
-              <h1 className="hero-enter-2 max-w-full wrap-break-word text-[2.15rem] font-extrabold leading-[1.12] tracking-tight sm:text-5xl md:max-w-xl md:text-6xl">
+              <h1 className="hero-enter-2 max-w-full wrap-break-word text-[2rem] font-extrabold leading-[1.08] tracking-tight sm:text-5xl md:max-w-xl md:text-6xl">
                 Find a place that feels like{" "}
                 <span className="text-orange-700">home.</span>
               </h1>
 
-              <p className="hero-enter-3 mt-5 max-w-lg text-base leading-7 text-stone-600 sm:text-lg">
+              <p className="hero-enter-3 mt-4 max-w-lg text-[15px] leading-6 text-stone-600 sm:mt-5 sm:text-lg sm:leading-7">
                 Explore student-friendly PGs and rooms near selected colleges
                 and universities in Palampur, Himachal Pradesh.
               </p>
 
               <a
                 href="#stays"
-                className="hero-enter-3 mt-7 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white hover:bg-orange-800"
+                className="hero-enter-3 mt-5 inline-flex items-center gap-2 rounded-full bg-orange-700 px-6 py-3 font-semibold text-white shadow-sm hover:bg-orange-800 sm:mt-7"
               >
                 Find your stay <Search size={18} />
               </a>
             </div>
 
-            <div className="overflow-hidden rounded-4xl hero-photo">
+            <div className="overflow-hidden rounded-3xl hero-photo md:rounded-4xl">
               <img
                 src="https://i.pinimg.com/736x/69/a5/c1/69a5c13b63e30f29c9e470cde3162256.jpg?auto=format&fit=crop&w=1200&q=85"
                 alt="Comfortable room interior"
@@ -821,7 +828,7 @@ function App() {
           </div>
         </section>
 
-        <section id="stays" className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-5 sm:py-14">
+        <section id="stays" className="mx-auto w-full max-w-7xl px-4 py-9 sm:px-5 sm:py-14">
           <div className="mb-8">
             <p className="text-sm font-bold uppercase tracking-widest text-orange-700">
               Explore accommodation
