@@ -69,6 +69,10 @@ const locations = [
 ];
 
 function App() {
+  const [showWelcomeIntro, setShowWelcomeIntro] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
   const [stays, setStays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -120,6 +124,12 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!showWelcomeIntro) return undefined;
+    const introTimer = window.setTimeout(() => setShowWelcomeIntro(false), 4600);
+    return () => window.clearTimeout(introTimer);
+  }, [showWelcomeIntro]);
 
   useEffect(() => {
     const nodes = document.querySelectorAll("[data-reveal]");
@@ -642,6 +652,42 @@ function App() {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[#fffaf5] text-stone-800">
+      {showWelcomeIntro && (
+        <div className="welcome-overlay fixed inset-0 z-200 flex min-h-100svh items-center justify-center overflow-hidden bg-[#fff0e8] px-5" role="dialog" aria-label="Welcome to StayHunt">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <span className="welcome-float text-3xl" style={{ left: "7%", "--duration": "6.2s", "--delay": "-.4s", "--drift": "25px" }}>☁️</span>
+            <span className="welcome-float text-2xl" style={{ left: "19%", "--duration": "5.7s", "--delay": "-2.1s", "--drift": "-18px" }}>🫧</span>
+            <span className="welcome-float text-2xl" style={{ left: "34%", "--duration": "6.5s", "--delay": "-1.2s", "--drift": "20px" }}>✨</span>
+            <span className="welcome-float text-3xl" style={{ left: "51%", "--duration": "5.9s", "--delay": "-3s", "--drift": "-22px" }}>🧸</span>
+            <span className="welcome-float text-2xl" style={{ left: "68%", "--duration": "6.4s", "--delay": "-1.8s", "--drift": "16px" }}>💗</span>
+            <span className="welcome-float text-3xl" style={{ left: "83%", "--duration": "5.8s", "--delay": "-2.7s", "--drift": "-20px" }}>☁️</span>
+            <span className="welcome-float text-2xl" style={{ left: "93%", "--duration": "6.1s", "--delay": "-.9s", "--drift": "14px" }}>🫧</span>
+            <span className="welcome-twinkle absolute left-[17%] top-[22%] text-xl text-[#d77a50]">✦</span>
+            <span className="welcome-twinkle absolute right-[18%] top-[27%] text-2xl text-[#d77a50]" style={{ animationDelay: ".7s" }}>✧</span>
+            <span className="welcome-twinkle absolute bottom-[24%] left-[23%] text-lg text-[#d77a50]" style={{ animationDelay: "1.1s" }}>✦</span>
+            <span className="welcome-twinkle absolute bottom-[28%] right-[24%] text-xl text-[#d77a50]" style={{ animationDelay: ".35s" }}>✧</span>
+            <div className="absolute -left-20 top-16 h-52 w-52 rounded-full bg-[#f8d5c4]/55 blur-3xl" />
+            <div className="absolute -right-20 bottom-12 h-56 w-56 rounded-full bg-[#f4c5b4]/45 blur-3xl" />
+          </div>
+          <div className="relative z-10 flex w-full max-w-sm flex-col items-center text-center">
+            <div className="welcome-house relative mb-5 flex h-44 w-44 items-center justify-center rounded-[2.5rem] bg-[#f8dfd2]/80 shadow-[0_18px_55px_rgba(166,75,43,0.12)]">
+              <svg viewBox="0 0 180 160" className="h-36 w-36 drop-shadow-sm" role="img" aria-label="A little home with a heart window">
+                <path d="M22 76 L90 18 L158 76" fill="none" stroke="#bd542d" strokeWidth="15" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M43 68 V139 Q43 145 50 145 H130 Q137 145 137 139 V68 L90 29 Z" fill="#d8754e" />
+                <path d="M90 112 C78 98 61 87 61 73 C61 60 77 54 90 69 C103 54 119 60 119 73 C119 87 102 99 90 112Z" fill="#fff4ec" />
+                <path d="M31 76 L90 25 L149 76" fill="none" stroke="#f3b99f" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" opacity=".9" />
+              </svg>
+              <span className="welcome-twinkle absolute -right-2 top-5 text-2xl text-[#c75b32]">✦</span>
+              <span className="welcome-twinkle absolute -left-3 bottom-8 text-xl text-[#c75b32]" style={{ animationDelay: ".8s" }}>✧</span>
+            </div>
+            <p className="welcome-text text-xs font-extrabold uppercase tracking-[0.28em] text-[#b64b27]">A little place to call home</p>
+            <h1 className="welcome-text mt-3 text-4xl font-black tracking-tight text-[#34231e]" style={{ animationDelay: ".95s" }}>Welcome to <span className="text-[#c64e24]">StayHunt</span></h1>
+            <p className="welcome-text mt-3 max-w-xs text-sm leading-6 text-[#806458]" style={{ animationDelay: "1.15s" }}>Find a stay that feels like home. 🏡</p>
+            <button type="button" onClick={() => setShowWelcomeIntro(false)} className="welcome-text mt-7 rounded-full bg-[#c9471d] px-7 py-3.5 text-sm font-bold text-white shadow-[0_9px_24px_rgba(190,70,30,0.24)] transition hover:-translate-y-0.5 hover:bg-[#ad3917]" style={{ animationDelay: "1.35s" }}>Explore StayHunt <span aria-hidden="true">✦</span></button>
+            <button type="button" onClick={() => setShowWelcomeIntro(false)} className="welcome-text mt-3 px-4 py-2 text-xs font-semibold text-[#9b705f] underline-offset-4 hover:underline" style={{ animationDelay: "1.5s" }}>Skip intro</button>
+          </div>
+        </div>
+      )}
       <style>{`
         html, body, #root { max-width: 100%; overflow-x: hidden; scroll-behavior: smooth; }
         img { max-width: 100%; } button, a { -webkit-tap-highlight-color: transparent; }
@@ -652,6 +698,16 @@ function App() {
         @keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes emptyHeartFloat { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-7px) rotate(4deg); } }
         @keyframes softPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(194,65,12,.12); } 50% { box-shadow: 0 0 0 12px rgba(194,65,12,0); } }
+        @keyframes welcomeFade { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
+        @keyframes welcomeHouse { 0% { opacity: 0; transform: translateY(18px) scale(.72); } 55% { opacity: 1; transform: translateY(-5px) scale(1.06); } 75% { transform: translateY(2px) scale(.98); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes welcomeText { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes welcomeFloat { 0% { opacity: 0; transform: translate3d(0,22px,0) rotate(-8deg) scale(.8); } 18% { opacity: .95; } 100% { opacity: 0; transform: translate3d(var(--drift, 18px),-115vh,0) rotate(18deg) scale(1.12); } }
+        @keyframes welcomeTwinkle { 0%,100% { opacity: .25; transform: scale(.7) rotate(0); } 50% { opacity: 1; transform: scale(1.18) rotate(18deg); } }
+        .welcome-overlay { animation: welcomeFade .55s ease 4.05s forwards; }
+        .welcome-house { animation: welcomeHouse .95s cubic-bezier(.2,.8,.2,1) both; }
+        .welcome-text { animation: welcomeText .7s .75s both; }
+        .welcome-float { position:absolute; bottom:-8vh; pointer-events:none; animation:welcomeFloat var(--duration,5.8s) ease-in infinite; animation-delay:var(--delay,0s); }
+        .welcome-twinkle { animation:welcomeTwinkle 2.1s ease-in-out infinite; }
         .empty-wishlist-icon { animation: emptyHeartFloat 3s ease-in-out infinite, softPulse 3s ease-in-out infinite; }
         .floating-action { animation: fadeUp .25s ease-out both; box-shadow: 0 10px 28px rgba(124,45,18,.18); }
         .hero-enter { animation: fadeUp .75s both; } .hero-enter-2 { animation: fadeUp .8s .12s both; } .hero-enter-3 { animation: fadeUp .8s .24s both; } .hero-photo { animation: floatPhoto 6s ease-in-out infinite; }
@@ -668,7 +724,7 @@ function App() {
           .hero-copy h1 { max-width: 12ch; font-size: clamp(2rem, 8vw, 2.45rem); line-height: 1.08; }
           .hero-copy p { font-size: 15px; line-height: 1.6; }
         }
-        @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } .cloud { display:none !important; } [data-reveal] { opacity:1; transform:none; } }
+        @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } .cloud { display:none !important; } [data-reveal] { opacity:1; transform:none; } .welcome-overlay { display:none !important; } }
       `}</style>
       <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
@@ -1290,7 +1346,7 @@ function App() {
         </section>
 
         <section id="about" className="mx-auto max-w-7xl scroll-mt-24 px-5 py-14 sm:py-16">
-          <div className="overflow-hidden rounded-2rem border border-orange-100 bg-[#fff0e5] p-6 sm:p-8 md:p-12">
+          <div className="overflow-hidden rounded-4xl border border-orange-100 bg-[#fff0e5] p-6 sm:p-8 md:p-12">
             <div className="grid items-center gap-9 md:grid-cols-[1.15fr_0.85fr] md:gap-12">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-700">
