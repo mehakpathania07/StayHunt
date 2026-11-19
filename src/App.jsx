@@ -112,13 +112,14 @@ function App() {
   const [visitRequests, setVisitRequests] = useState([]);
   const [studentRequests, setStudentRequests] = useState([]);
   const [showMyRequests, setShowMyRequests] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
   const [listingSaving, setListingSaving] = useState(false);
   const [editingListingId, setEditingListingId] = useState(null);
   const [listingForm, setListingForm] = useState({
     name: "", location: "Palampur", institution: "Sri Sai University",
     type: "Girls PG", rent: "", image: "", description: "", bathroom: "",
-    meals: "", furnished: "", facilities: "", availability: "Available",
+    meals: "", furnished: "", furnitureDetails: "", beds: "", imageUrls: "", facilities: "", availability: "Available",
   });
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => setCurrentUser(user));
@@ -464,7 +465,7 @@ function App() {
     setListingForm({
       name: "", location: "Palampur", institution: "Sri Sai University",
       type: "Girls PG", rent: "", image: "", description: "", bathroom: "",
-      meals: "", furnished: "", facilities: "", availability: "Available",
+      meals: "", furnished: "", furnitureDetails: "", beds: "", imageUrls: "", facilities: "", availability: "Available",
     });
   }
 
@@ -481,6 +482,9 @@ function App() {
       bathroom: stay.bathroom || "",
       meals: stay.meals === true ? "Available" : String(stay.meals || ""),
       furnished: stay.furnished || "",
+      furnitureDetails: Array.isArray(stay.furnitureDetails) ? stay.furnitureDetails.join(", ") : String(stay.furnitureDetails || ""),
+      beds: String(stay.beds || ""),
+      imageUrls: Array.isArray(stay.images) ? stay.images.join("\n") : "",
       facilities: Array.isArray(stay.facilities) ? stay.facilities.join(", ") : "",
       availability: stay.availability || "Available",
     });
@@ -500,10 +504,13 @@ function App() {
       type: listingForm.type,
       rent: Number(listingForm.rent),
       image: listingForm.image.trim(),
+      images: [listingForm.image.trim(), ...listingForm.imageUrls.split(/[\n,]+/).map((value) => value.trim())].filter((value, index, array) => value && array.indexOf(value) === index),
       description: listingForm.description.trim(),
       bathroom: listingForm.bathroom,
       meals: listingForm.meals,
       furnished: listingForm.furnished,
+      furnitureDetails: listingForm.furnitureDetails.split(",").map((value) => value.trim()).filter(Boolean),
+      beds: listingForm.beds.trim(),
       facilities: listingForm.facilities.split(",").map((value) => value.trim()).filter(Boolean),
       availability: listingForm.availability,
       updatedAt: serverTimestamp(),
@@ -709,6 +716,7 @@ function App() {
         .welcome-float { position:absolute; bottom:-8vh; pointer-events:none; animation:welcomeFloat var(--duration,5.8s) ease-in infinite; animation-delay:var(--delay,0s); }
         .welcome-twinkle { animation:welcomeTwinkle 2.1s ease-in-out infinite; }
         .empty-wishlist-icon { animation: emptyHeartFloat 3s ease-in-out infinite, softPulse 3s ease-in-out infinite; }
+        .empty-state-bob { animation: emptyHeartFloat 3.4s ease-in-out infinite; }
         .floating-action { animation: fadeUp .25s ease-out both; box-shadow: 0 10px 28px rgba(124,45,18,.18); }
         .hero-enter { animation: fadeUp .75s both; } .hero-enter-2 { animation: fadeUp .8s .12s both; } .hero-enter-3 { animation: fadeUp .8s .24s both; } .hero-photo { animation: floatPhoto 6s ease-in-out infinite; }
         [data-reveal] { opacity: 0; transform: translateY(20px); transition: opacity .65s ease, transform .65s ease; }
@@ -821,7 +829,10 @@ function App() {
                       <label className="block text-sm font-semibold">Availability<select value={listingForm.availability} onChange={(e) => setListingForm({...listingForm,availability:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 bg-white px-3 py-2.5 font-normal"><option>Available</option><option>Full</option></select></label>
                     </div>
                     <label className="block text-sm font-semibold">Institution<input value={listingForm.institution} onChange={(e) => setListingForm({...listingForm,institution:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
-                    <label className="block text-sm font-semibold">Image URL<input value={listingForm.image} onChange={(e) => setListingForm({...listingForm,image:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="https://..." /></label>
+                    <label className="block text-sm font-semibold">Main image URL<input value={listingForm.image} onChange={(e) => setListingForm({...listingForm,image:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="https://..." /></label>
+                    <label className="block text-sm font-semibold">More image URLs (one per line)<textarea value={listingForm.imageUrls} onChange={(e) => setListingForm({...listingForm,imageUrls:e.target.value})} rows="3" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="Paste additional room / kitchen / washroom photo URLs" /></label>
+                    <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-semibold">Number of beds<input type="number" min="0" value={listingForm.beds} onChange={(e) => setListingForm({...listingForm,beds:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="e.g. 2" /></label><label className="block text-sm font-semibold">Furnishing status<select value={listingForm.furnished} onChange={(e) => setListingForm({...listingForm,furnished:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 bg-white px-3 py-2.5 font-normal"><option value="">Select status</option><option>Fully furnished</option><option>Semi-furnished</option><option>Unfurnished</option></select></label></div>
+                    <label className="block text-sm font-semibold">Furniture included (comma separated)<input value={listingForm.furnitureDetails} onChange={(e) => setListingForm({...listingForm,furnitureDetails:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="Bed, mattress, wardrobe, study table, chair" /></label>
                     <label className="block text-sm font-semibold">Facilities (comma separated)<input value={listingForm.facilities} onChange={(e) => setListingForm({...listingForm,facilities:e.target.value})} className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" placeholder="Wi-Fi, Meals, Laundry" /></label>
                     <label className="block text-sm font-semibold">Description<textarea value={listingForm.description} onChange={(e) => setListingForm({...listingForm,description:e.target.value})} rows="3" className="mt-1 w-full rounded-xl border border-orange-100 px-3 py-2.5 font-normal" /></label>
                     <button disabled={listingSaving} type="submit" className="w-full rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800 disabled:opacity-60">{listingSaving ? "Saving..." : editingListingId ? "Save changes" : "Add listing"}</button>
@@ -983,8 +994,15 @@ function App() {
               </label>
 
               <button
+                type="button"
+                onClick={() => document.getElementById("stay-results")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" })}
+                className="ml-auto inline-flex items-center gap-2 rounded-full bg-orange-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-800"
+              >
+                <Search size={16} /> Show results
+              </button>
+              <button
                 onClick={resetFilters}
-                className="ml-auto inline-flex items-center gap-2 text-sm font-semibold text-orange-700 hover:text-orange-900"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-orange-700 hover:text-orange-900"
               >
                 <SlidersHorizontal size={16} />
                 Reset filters
@@ -992,7 +1010,7 @@ function App() {
             </div>
           </div>}
 
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div id="stay-results" className="mb-5 flex scroll-mt-24 flex-wrap items-center justify-between gap-3">
             <p className="font-semibold">
               {loading
                 ? "Loading listings..."
@@ -1032,11 +1050,10 @@ function App() {
 
           {!loading && !error && displayedStays.length === 0 && (
             <div className="mx-auto max-w-2xl rounded-3xl border border-orange-100 bg-white px-6 py-12 text-center shadow-sm sm:px-10">
-              <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#fff0e5] ${showWishlist ? "empty-wishlist-icon" : ""}`}>
-                <Heart
-                  size={36}
-                  className={showWishlist ? "fill-orange-200 text-orange-700" : "text-orange-700"}
-                />
+              <div className={`empty-state-bob relative mx-auto flex h-24 w-24 items-center justify-center rounded-2rem bg-[#fff0e5] text-5xl shadow-inner ${showWishlist ? "empty-wishlist-icon" : ""}`} aria-hidden="true">
+                {showWishlist ? "♡" : "🏡"}
+                <span className="absolute -right-2 -top-2 text-xl animate-pulse">✦</span>
+                <span className="absolute -bottom-1 -left-3 text-lg animate-bounce">🫧</span>
               </div>
               <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-orange-700">
                 {showWishlist ? "Your favourites" : "Keep exploring"}
@@ -1086,9 +1103,9 @@ function App() {
                     className="stay-card overflow-hidden rounded-3xl border border-orange-100 bg-white transition hover:-translate-y-1 hover:shadow-lg"
                   >
                     <div className="relative h-56 bg-orange-50">
-                      {stay.image || stay.imageUrl ? (
+                      {(Array.isArray(stay.images) && stay.images.length > 0) || stay.image || stay.imageUrl ? (
                         <img
-                          src={stay.image || stay.imageUrl}
+                          src={(Array.isArray(stay.images) && stay.images[0]) || stay.image || stay.imageUrl}
                           alt={name}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -1102,6 +1119,7 @@ function App() {
                       <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-orange-800 shadow-sm">
                         {type}
                       </span>
+                      {Array.isArray(stay.images) && stay.images.length > 1 && <span className="absolute bottom-4 left-4 rounded-full bg-stone-900/70 px-3 py-1.5 text-xs font-semibold text-white">▧ {stay.images.length} photos</span>}
 
                       <button
                         onClick={() => toggleWishlist(stay.id)}
@@ -1152,7 +1170,7 @@ function App() {
                         </p>
                         <p className="flex items-center gap-2 text-stone-600">
                           <BedDouble size={16} />
-                          {stay.furnished || "Furnishing not added"}
+                          {stay.beds ? `${stay.beds} bed(s)` : "Bed details not added"}
                         </p>
                         <p className="flex items-center gap-2 text-stone-600">
                           <Wifi size={16} />
@@ -1165,6 +1183,9 @@ function App() {
                         </p>
                       </div>
 
+                      {Array.isArray(stay.furnitureDetails) && stay.furnitureDetails.length > 0 && (
+                        <div className="mt-3"><p className="mb-2 text-xs font-bold uppercase tracking-wide text-orange-700">Furnished with</p><div className="flex flex-wrap gap-2">{stay.furnitureDetails.map((item, index) => <span key={`furniture-${stay.id}-${index}`} className="rounded-full bg-[#fff4eb] px-3 py-1 text-xs text-stone-700">{item}</span>)}</div></div>
+                      )}
                       {facilities.length > 0 && (
                         <div className="mt-4 flex flex-wrap gap-2">
                           {facilities.map((facility, index) => (
@@ -1276,15 +1297,18 @@ function App() {
                 <div><p className="text-sm font-bold uppercase tracking-wide text-orange-700">Stay details</p><h2 className="mt-1 text-2xl font-extrabold">{selectedStay.name || selectedStay.title || "Stay details"}</h2></div>
                 <button type="button" onClick={() => setSelectedStay(null)} aria-label="Close details" className="rounded-full p-2 hover:bg-orange-50"><X size={20} /></button>
               </div>
-              {(selectedStay.image || selectedStay.imageUrl) && <img src={selectedStay.image || selectedStay.imageUrl} alt={selectedStay.name || "Accommodation room"} className="mt-4 h-56 w-full rounded-2xl object-cover" />}
+              {(() => { const photos = (Array.isArray(selectedStay.images) ? selectedStay.images : []).filter(Boolean); const allPhotos = photos.length ? photos : [selectedStay.image || selectedStay.imageUrl].filter(Boolean); return allPhotos.length > 0 ? <div className="mt-4 grid grid-cols-2 gap-2">{allPhotos.map((photo, index) => <img key={`${selectedStay.id}-photo-${index}`} src={photo} alt={`${selectedStay.name || "Accommodation"} photo ${index + 1}`} className={`h-40 w-full rounded-2xl object-cover ${index === 0 && allPhotos.length % 2 === 1 ? "col-span-2 h-52" : ""}`} loading="lazy" />)}</div> : null; })()}
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <p><span className="text-slate-500">Type</span><br /><strong>{selectedStay.type || selectedStay.roomType || "Not specified"}</strong></p>
                 <p><span className="text-slate-500">Location</span><br /><strong>{selectedStay.location || "Palampur"}</strong></p>
                 <p><span className="text-slate-500">Institution</span><br /><strong>{selectedStay.institution || "Not specified"}</strong></p>
                 <p><span className="text-slate-500">Monthly rent</span><br /><strong>₹{Number(selectedStay.rent ?? selectedStay.price ?? 0).toLocaleString("en-IN")}</strong></p>
                 <p><span className="text-slate-500">Bathroom</span><br /><strong>{selectedStay.bathroom || "Not specified"}</strong></p>
-                <p><span className="text-slate-500">Meals</span><br /><strong>{selectedStay.meals === true ? "Available" : selectedStay.meals === false ? "Not included" : "Not specified"}</strong></p>
+                <p><span className="text-slate-500">Meals</span><br /><strong>{selectedStay.meals === true ? "Available" : selectedStay.meals === false ? "Not included" : selectedStay.meals || "Not specified"}</strong></p>
+                <p><span className="text-slate-500">Beds in room</span><br /><strong>{selectedStay.beds || "Not specified"}</strong></p>
+                <p><span className="text-slate-500">Furnishing</span><br /><strong>{selectedStay.furnished || "Not specified"}</strong></p>
               </div>
+              {Array.isArray(selectedStay.furnitureDetails) && selectedStay.furnitureDetails.length > 0 && <div className="mt-4"><p className="mb-2 text-sm font-bold text-stone-800">Furniture included</p><div className="flex flex-wrap gap-2">{selectedStay.furnitureDetails.map((item, index) => <span key={`detail-furniture-${index}`} className="rounded-full bg-orange-50 px-3 py-1 text-sm text-stone-700">{item}</span>)}</div></div>}
               {selectedStay.description && <p className="mt-4 leading-6 text-stone-600">{selectedStay.description}</p>}
               {Array.isArray(selectedStay.facilities) && selectedStay.facilities.length > 0 && <div className="mt-4 flex flex-wrap gap-2">{selectedStay.facilities.map((item, index) => <span key={`${item}-${index}`} className="rounded-full bg-orange-50 px-3 py-1 text-sm">{item}</span>)}</div>}
               <button type="button" onClick={() => { setBookingMessage(""); setBookingError(""); setBookingStay(selectedStay); setSelectedStay(null); }} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 py-3 font-semibold text-white hover:bg-orange-800"><CalendarDays size={18} /> Book a visit</button>
@@ -1428,6 +1452,8 @@ function App() {
 
       </main>
 
+      {showTerms && <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4" onClick={() => setShowTerms(false)}><section role="dialog" aria-modal="true" aria-label="Terms and Conditions" className="modal-panel max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-700">StayHunt</p><h2 className="mt-1 text-2xl font-extrabold">Terms &amp; Conditions</h2></div><button type="button" onClick={() => setShowTerms(false)} aria-label="Close terms" className="rounded-full p-2 hover:bg-orange-50"><X size={20}/></button></div><div className="mt-5 space-y-4 text-sm leading-6 text-stone-600"><p><strong>1. Informational purpose:</strong> StayHunt helps students discover and compare accommodation listings. Listing information is provided by property owners or administrators and should be confirmed before making a decision.</p><p><strong>2. Accuracy and availability:</strong> Rent, facilities, photographs, furnishing, bed count and availability may change. Contact the property provider and verify all details in person before paying any amount.</p><p><strong>3. Visit requests:</strong> Submitting a visit request is only a request to contact or arrange a visit. It is not a confirmed booking, rental agreement or guarantee of accommodation.</p><p><strong>4. User responsibility:</strong> Users should provide accurate contact details, communicate respectfully and independently review the property, terms, safety and payment arrangements.</p><p><strong>5. Payments:</strong> Do not send money based only on a listing or a message. Verify the property and the person receiving payment directly before making any payment.</p><p><strong>6. Changes:</strong> StayHunt may update listings or these terms as the service changes. Continued use of the website means you acknowledge the latest displayed terms.</p><p><strong>7. Contact:</strong> For website-related queries, use the contact details shown in the footer.</p></div><button type="button" onClick={() => setShowTerms(false)} className="mt-6 w-full rounded-xl bg-orange-700 px-4 py-3 font-bold text-white hover:bg-orange-800">I understand</button></section></div>}
+
       <footer className="border-t border-orange-100 bg-[#fff7ef] px-5 pb-6 pt-10">
         <div className="mx-auto grid max-w-7xl gap-9 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
@@ -1443,13 +1469,14 @@ function App() {
               <button type="button" onClick={openStays} className="transition hover:text-orange-700">Explore stays</button>
               <button type="button" onClick={openWishlist} className="transition hover:text-orange-700">My wishlist</button>
               <a href="#about" className="transition hover:text-orange-700">About us</a>
+              <button type="button" onClick={() => setShowTerms(true)} className="transition hover:text-orange-700">Terms &amp; Conditions</button>
             </div>
           </div>
           <div>
             <h3 className="font-extrabold text-stone-800">Contact</h3>
             <div className="mt-4 space-y-3 text-sm text-stone-600">
               <a href="tel:9317424196" className="block transition hover:text-orange-700">+91 9317424196</a>
-              <p>Nurpur, Kangra,<br />Himachal Pradesh, India</p>
+              <p>Palampur, Kangra,<br />Himachal Pradesh, India</p>
             </div>
           </div>
         </div>
